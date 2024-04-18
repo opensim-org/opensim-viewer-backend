@@ -32,7 +32,7 @@ def initGltf():
     "Initialize Gltf json structure, seed it with basicShapes"
     cwd = os.getcwd();
     dir_path = os.path.dirname(os.path.realpath(__file__))
-    print ("Current working directory ", dir_path)
+    # print ("Current working directory ", dir_path)
     gltf = GLTF2().load(os.path.join(dir_path,'basicShapes.gltf'))
     gltf.nodes.clear()
     default_scene = gltf.scenes[0]
