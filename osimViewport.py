@@ -18,6 +18,7 @@
     limitations under the License.
 '''
 
+from pathlib import Path
 import osimConverters as osimC
 import opensim as osim
 
@@ -47,6 +48,10 @@ class osimViewport:
         self._label = ""
 
     def  show(self):
-        gltfOutput = osimC.convertNativeFileToGLTF(self._modelFile)
-        gltfOutput.save('output.gltf')
+        if (len(self._motions)==0):
+            gltfOutput = osimC.convertNativeFileToGLTF(self._modelFile)
+        else:
+            gltfOutput = osimC.convertNativeFileToGLTF(self._modelFile, self._motions)
+        shortname = Path(self._modelFile).stem
+        gltfOutput.save(shortname+'.gltf')
     
