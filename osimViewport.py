@@ -51,7 +51,7 @@ class osimViewport:
         if (len(self._motions)==0):
             gltfOutput = osimC.convertNativeFileToGLTF(self._modelFile)
         else:
-            gltfOutput = osimC.convertNativeFileToGLTF(self._modelFile, self._motions)
+            gltfOutput = osimC.convertNativeFileSetToGLTF(self._modelFile, self._motions)
         shortname = Path(self._modelFile).stem
         gltfOutput.save(shortname+'.gltf')
     
