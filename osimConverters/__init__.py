@@ -25,7 +25,7 @@ def convertNativeFileToGLTF(inFilePathOrURL):
 
         return gltfJson
         
-def convertNativeFileToGLTF(inFilePathOrURL, motions):
+def convertNativeFileSetToGLTF(inFilePathOrURL, motions):
     gltfJson = convertOsim2Gltf(inFilePathOrURL, '', motions)
 
     return gltfJson
