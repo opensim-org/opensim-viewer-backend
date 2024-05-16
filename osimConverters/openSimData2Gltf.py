@@ -496,8 +496,8 @@ def convertForcesTableToGltfAnimation(gltfTop, timeSeriesTableVec3, conversionTo
     #
     forceIndex = forceIndex+1
 
-def attachCameraToBody(gltfTop, osimBodyIndex, pos=[0., 0., 0.], rotq=[0., 0., 0., 1.0]):
-  addCamera(gltfTop, "", osimBodyIndex, pos, rotq)
+def attachCameraToBody(gltfTop, osimBodyIndex, pos=[0., 0., 0.], rotq=[0., 0., 0., 1.0], name=""):
+  addCamera(gltfTop, name, osimBodyIndex, pos, rotq)
 
 def addCamera(gltfTop, cname="", parentNodeIndex=None, pos=[0., 0., 0.], rotq=[0., 0., 0., 1.0], yfov=1.0, znear=0.1, zfar = 1000.0):
   n = Node()
@@ -523,3 +523,5 @@ def addCamera(gltfTop, cname="", parentNodeIndex=None, pos=[0., 0., 0.], rotq=[0
   else:
     gltfTop.nodes[parentNodeIndex].children.append(len(gltfTop.nodes)-1)
   return len(gltfTop.nodes)-1
+
+

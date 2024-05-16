@@ -63,7 +63,7 @@ def convertOsim2Gltf(osimModelFilePath, geometrySearchPath, motionPaths=[]) :
   modelGltf = decorativeGeometryImp.get_GLTF()
   for b in range(model.getBodySet().getSize()):
     nextBodyNodeIndex = decorativeGeometryImp.getNodeIndexForBody(model.getBodySet().get(b))
-    attachCameraToBody(modelGltf, nextBodyNodeIndex, [0, 1, 3])
+    attachCameraToBody(modelGltf, nextBodyNodeIndex, [0, 1, 3], [0., 0., 0., 1.], str(model.getBodySet().get(b).getName()+"Cam"))
   return modelGltf
 
 
