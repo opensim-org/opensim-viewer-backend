@@ -151,7 +151,10 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         
         # print("produce mesh", arg0.getMeshFile())
         return
-
+    
+    def getNodeIndexForBody(self, body):
+        return self.mapMobilizedBodyIndexToNodeIndex[body.getMobilizedBodyIndex()]
+    
     def createGLTFMeshFromPolyData(self, arg0, gltfName, polyDataOutput, materialIndex):
         if (polyDataOutput.GetNumberOfCells() > 0):
             mesh = self.addMeshForPolyData(polyDataOutput, materialIndex) # populate from polyDataOutput
@@ -467,5 +470,3 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
             ttarget.path = "translation"
             transChannel.target = ttarget
             transChannel.sampler = transSamplerIndex
-            
-

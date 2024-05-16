@@ -21,7 +21,7 @@
 from pathlib import Path
 import osimConverters as osimC
 import opensim as osim
-
+import osimConverters.openSimData2Gltf
 '''
 osimViewort class is a utility that embodies the creation and manipulation of a view
 that will be displayed in a jupyter notebook. the parameters passed in will be used to shape/size and otherwise
@@ -36,22 +36,39 @@ class osimViewport:
         self.width = width
         self.height = hight
         self._label = ""
+        self.sceneCameras = []
 
     def addModelFile(self, modelFile):
         self._modelFile = modelFile
         self._motions = []
         self._label = ""
+        self.sceneCameras = []
+
+    def addDataFile(self, dataFile):
+        self._modelFile = dataFile #this should be cleaned up to clarify
+        self._motions = []
+        self._label = ""
+        self.sceneCameras = []
 
     def addModelAndMotionFiles(self, modelFile, motions):
         self._motions = motions
         self._modelFile = modelFile
         self._label = ""
+        self.sceneCameras = []
+
+    def addSceneCamera(self, sceneCamera):
+        self.sceneCameras.append(sceneCamera)
 
     def  show(self):
         if (len(self._motions)==0):
             gltfOutput = osimC.convertNativeFileToGLTF(self._modelFile)
         else:
             gltfOutput = osimC.convertNativeFileSetToGLTF(self._modelFile, self._motions)
+        
+        # add user provided cameras 
+        for cam in self.sceneCameras:
+            osimConverters.openSimData2Gltf.addCamera(gltfOutput, cam.name, None, cam.position, cam.rotation)
+        
         shortname = Path(self._modelFile).stem
         gltfOutput.save(shortname+'.gltf')
     
