@@ -418,7 +418,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
                 for idx in range(3):
                     translation_arrays[bodyIndex][step, idx] = translation[idx]
 
-        camaraPathSuffixes = ["Z", "X", "Y"]
+        camaraPathSuffixes = ["X", "Z", "Y"]
         cameraNodes = [];
         #create 3 scene cameras for tracking along X, Y, Z directions
         for suffix in camaraPathSuffixes:
@@ -478,17 +478,19 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
             transChannel.target = ttarget
             transChannel.sampler = transSamplerIndex
 
+        # Add builtin cameras
         # create time sampler for the camera
         cameraTimes = np.array([timeColumn[0], timeColumn[timeColumn.size()-1]])
         addTimeStampsAccessor(self.gltf, cameraTimes)
         cameraTimeAccessorIndex = len(self.gltf.accessors)-1  
+        # Camera X, Y, Z
         # now add samplers and channels for the cameras
         cameraRotation_bbox_arrays = [[0., 0., 0., 1.0], [0., 0., 0.,1.0], 
                                  [0., 0.707, 0., 0.707], [0., 0.707, 0., 0.707],
-                                 [0.707, 0., 0., 0.707], [0.707, 0., 0., 0.707]]
-        cameraTranslation_bbox_arrays = [[-1., 0.5, 3.0], [1., 0.5, 3.0],
-                                    [3., 0.5, -1.0], [3., 0.5, 1.0],
-                                    [0., 3., 0.], [0., 3.0, 0.]]
+                                 [-0.707, 0., 0., 0.707], [-0.707, 0., 0., 0.707]]
+        cameraTranslation_bbox_arrays = [[-0.5, 1.0, 2.0], [0.5, 1.0, 2.0],
+                                    [3., 0.5, -0.5], [3., 0.5, 0.5],
+                                    [0., 3., 0.], [1., 3.0, 0.]]
         cameraRotation_arrays = []
         cameraTranslation_arrays = []
         for camIndex in range(len(cameraNodes)):
