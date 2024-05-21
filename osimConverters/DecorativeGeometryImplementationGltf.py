@@ -388,6 +388,8 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
                                           timeSeriesStorage: osim.Storage, animationName=""):
         # create a timeSeriesTableVec3 of translations one column per body and
         # another timeSeriesTableQuaternion of rotation one per body
+        if (animationName=="") :
+            animationName = timeSeriesStorage.getName()
         times = osim.ArrayDouble()
         timeSeriesStorage.getTimeColumn(times)
         timeColumn = osim.Vector(times.getAsVector())
@@ -416,7 +418,12 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
                 for idx in range(3):
                     translation_arrays[bodyIndex][step, idx] = translation[idx]
 
-
+        camaraPathSuffixes = ["Z", "X", "Y"]
+        cameraNodes = [];
+        #create 3 scene cameras for tracking along X, Y, Z directions
+        for suffix in camaraPathSuffixes:
+            cameraNodes.append(addCamera(self.gltf, str("AnimCam"+animationName+suffix), None))
+        
         # create an Animation Node
         animation = Animation()
         if (animationName==""):
@@ -470,3 +477,63 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
             ttarget.path = "translation"
             transChannel.target = ttarget
             transChannel.sampler = transSamplerIndex
+
+        # create time sampler for the camera
+        cameraTimes = np.array([timeColumn[0], timeColumn[timeColumn.size()-1]])
+        addTimeStampsAccessor(self.gltf, cameraTimes)
+        cameraTimeAccessorIndex = len(self.gltf.accessors)-1  
+        # now add samplers and channels for the cameras
+        cameraRotation_bbox_arrays = [[0., 0., 0., 1.0], [0., 0., 0.,1.0], 
+                                 [0., 0.707, 0., 0.707], [0., 0.707, 0., 0.707],
+                                 [0.707, 0., 0., 0.707], [0.707, 0., 0., 0.707]]
+        cameraTranslation_bbox_arrays = [[-1., 0.5, 3.0], [1., 0.5, 3.0],
+                                    [3., 0.5, -1.0], [3., 0.5, 1.0],
+                                    [0., 3., 0.], [0., 3.0, 0.]]
+        cameraRotation_arrays = []
+        cameraTranslation_arrays = []
+        for camIndex in range(len(cameraNodes)):
+            cameraRotation_arrays.append(np.zeros((2, 4), dtype="float32"))
+            cameraTranslation_arrays.append(np.zeros((2, 3), dtype="float32"))
+            # for camera "cam" 
+            # append cameraRotation_arrays[2*cam], cameraRotation_arrays[2*cam+1] to rotations
+            # append cameraTranslation_arrays[2*cam], cameraRotation_arrays[2*cam+1] to rotations
+            for step in range(2):
+                for idx in range(4):
+                    cameraRotation_arrays[camIndex][step, idx] = cameraRotation_bbox_arrays[2*camIndex+step][idx]
+                for idx in range(3):
+                    cameraTranslation_arrays[camIndex][step, idx] = cameraTranslation_bbox_arrays[2*camIndex+step][idx]
+            #for every camera, will have 2 samplers one for rotations, the other for translations 
+            # will ruse cameraTimeAccessorIndex
+            rotSamplerIndex = len(animation.samplers)
+            transSamplerIndex = rotSamplerIndex+1
+            camRotSampler = AnimationSampler()
+            camTransSampler = AnimationSampler()
+            camRotSampler.input = cameraTimeAccessorIndex
+            camTransSampler.input = cameraTimeAccessorIndex
+            camRotSampler.output = createAccessor(self.gltf, cameraRotation_arrays[camIndex], 'r')
+            camTransSampler.output = createAccessor(self.gltf, cameraTranslation_arrays[camIndex], 't')
+            animation.samplers.append(camRotSampler)
+            animation.samplers.append(camTransSampler)
+            # Create channels
+            camRotChannelIndex = len(animation.channels)
+            camTransChannelIndex = camRotChannelIndex+1
+            # nextChannelNumber for rotations, nextChannelNumber+1 for translations
+            camRotChannel = AnimationChannel()
+            camTransChannel = AnimationChannel()
+            animation.channels.append(camRotChannel)
+            animation.channels.append(camTransChannel) 
+            # get camera node index
+            camNodeIndex = cameraNodes[camIndex]
+
+            rtarget = AnimationChannelTarget()
+            rtarget.node = camNodeIndex
+            rtarget.path =  "rotation"
+            camRotChannel.target = rtarget
+            camRotChannel.sampler = rotSamplerIndex
+            ttarget = AnimationChannelTarget()
+            ttarget.node = camNodeIndex
+            ttarget.path = "translation"
+            camTransChannel.target = ttarget
+            camTransChannel.sampler = transSamplerIndex
+
+
