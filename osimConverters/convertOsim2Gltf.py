@@ -58,7 +58,7 @@ def convertOsim2Gltf(osimModelFilePath, geometrySearchPath, motionPaths=[]) :
     motStorage = osim.Storage(motionPaths[motIndex])
     if (motStorage.isInDegrees()):
       model.getSimbodyEngine().convertDegreesToRadians(motStorage)
-    decorativeGeometryImp.createAnimationForStateTimeSeries(motStorage)
+    decorativeGeometryImp.createAnimationForStateTimeSeries(motStorage, motIndex)
 
   modelGltf = decorativeGeometryImp.get_GLTF()
   for b in range(model.getBodySet().getSize()):

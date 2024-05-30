@@ -1,7 +1,7 @@
 import opensim as osim
 from pygltflib import *
 import numpy as np
-import vtk 
+import vtk
 from .openSimData2Gltf import *
 
 # Class to convert osim model file to a GLTF structure.
@@ -385,11 +385,13 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         gltfNode.extras["opensimType"] = self.currentComponent.getConcreteClassName()
 
     def createAnimationForStateTimeSeries(self, 
-                                          timeSeriesStorage: osim.Storage, animationName=""):
+                                          timeSeriesStorage: osim.Storage, motIndex: int, animationName=""):
         # create a timeSeriesTableVec3 of translations one column per body and
         # another timeSeriesTableQuaternion of rotation one per body
         if (animationName=="") :
             animationName = timeSeriesStorage.getName()
+        if (animationName=="") :
+            animationName = "Anim_"+str(motIndex)
         times = osim.ArrayDouble()
         timeSeriesStorage.getTimeColumn(times)
         timeColumn = osim.Vector(times.getAsVector())
@@ -418,12 +420,6 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
                 for idx in range(3):
                     translation_arrays[bodyIndex][step, idx] = translation[idx]
 
-        camaraPathSuffixes = ["X", "Z", "Y"]
-        cameraNodes = [];
-        #create 3 scene cameras for tracking along X, Y, Z directions
-        for suffix in camaraPathSuffixes:
-            cameraNodes.append(addCamera(self.gltf, str("AnimCam"+animationName+suffix), None))
-        
         # create an Animation Node
         animation = Animation()
         if (animationName==""):
@@ -434,7 +430,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         self.animations.append(animation)
         animationIndex = len(self.animations)-1
         # create 2 channels per body one for rotation, other for translation
-        # keep track of first samplers index then create 2 per body
+        # keep track of first samplers index then create 2 per body for rotation, translation
         addTimeStampsAccessor(self.gltf, timeColumn.to_numpy())
         # this is the input to every  sampler's input
         timeAccessorIndex = len(self.gltf.accessors)-1
@@ -478,13 +474,21 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
             transChannel.target = ttarget
             transChannel.sampler = transSamplerIndex
 
+            # Since accessors have min/max we use these to create a bbox based on translations to try automate
+            # default cameras
+            
         # Add builtin cameras
+        # first create nodes for the cameras, then accessors that will be used to position/orient them
+        cameraNodes = self.createCameraNodes(animationName)
         # create time sampler for the camera
         cameraTimes = np.array([timeColumn[0], timeColumn[timeColumn.size()-1]])
         addTimeStampsAccessor(self.gltf, cameraTimes)
         cameraTimeAccessorIndex = len(self.gltf.accessors)-1  
         # Camera X, Y, Z
         # now add samplers and channels for the cameras
+        self.createCameraSamplersAndTargets(cameraNodes, animation, cameraTimeAccessorIndex)
+
+    def createCameraSamplersAndTargets(self, cameraNodes, animation, cameraTimeAccessorIndex):
         cameraRotation_bbox_arrays = [[0., 0., 0., 1.0], [0., 0., 0.,1.0], 
                                  [0., 0.707, 0., 0.707], [0., 0.707, 0., 0.707],
                                  [-0.707, 0., 0., 0.707], [-0.707, 0., 0., 0.707]]
@@ -537,5 +541,13 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
             ttarget.path = "translation"
             camTransChannel.target = ttarget
             camTransChannel.sampler = transSamplerIndex
+
+    def createCameraNodes(self, animationName):
+        camaraPathSuffixes = ["X", "Z", "Y"]
+        cameraNodes = [];
+        #create 3 scene cameras for tracking along X, Y, Z directions
+        for suffix in camaraPathSuffixes:
+            cameraNodes.append(addCamera(self.gltf, str("Cam"+animationName+suffix), None))
+        return cameraNodes
 
 
