@@ -358,18 +358,19 @@ def convertMarkersTimeSeries2Gltf(gltfJson, shape, timeSeriesTableMarkers):
       shape = 'cube'
 
     firstMarkerNodeIndex = len(gltfJson.nodes)
+      # 0 cube, 1 sphere, 2 brick
+    desiredShape = mapShapeStringToMeshNumber(shape)
+      
     # Create nodes for the experimental markers, 1 node per marker
     for markerIndex in range(numMarkers):
       # Create node for the marker
       nextMarkerNode = Node()
       nextMarkerNode.name = timeSeriesTableMarkers.getColumnLabel(markerIndex)
-      # 0 cube, 1 sphere, 2 brick
-      desiredShape = mapShapeStringToMeshNumber(shape)
       # Use cube if no shape is specified
       if (desiredShape==None):
         nextMarkerNode.mesh =  0
       else:
-        nextMarkerNode.mesh = desiredShape
+        nextMarkerNode.mesh = desiredShape 
 
       # extras are place holder for application specific properties
       # for now we'll pass opensimType, may add layers, as needs arise....
@@ -494,4 +495,33 @@ def convertForcesTableToGltfAnimation(gltfTop, timeSeriesTableVec3, conversionTo
     addRSAccessors(gltfTop, timeSeriesTableVec3, dict[force], conversionToMeters)
     #
     forceIndex = forceIndex+1
+
+def attachCameraToBody(gltfTop, osimBodyIndex, pos=[0., 0., 0.], rotq=[0., 0., 0., 1.0], name=""):
+  addCamera(gltfTop, name, osimBodyIndex, pos, rotq)
+
+def addCamera(gltfTop, cname="", parentNodeIndex=None, pos=[0., 0., 0.], rotq=[0., 0., 0., 1.0], yfov=1.0, znear=0.1, zfar = 1000.0):
+  n = Node()
+  n.rotation = rotq
+  n.translation = pos
+  if (cname==""):
+    n.name = "Camera"+str(len(gltfTop.cameras)+1)
+  else:
+    n.name = cname
+  n.camera = len(gltfTop.cameras)
+  gltfTop.nodes.append(n)
+
+  camera = Camera()
+  camera.type = "perspective"  # or "orthographic"
+  camera.perspective = Perspective()
+  camera.perspective.yfov = yfov  # Field of view in degrees
+  camera.perspective.znear = 0.1  # Near clipping plane
+  camera.perspective.zfar = zfar  # Far clipping plane
+
+  gltfTop.cameras.append(camera)
+  if parentNodeIndex is None:
+    gltfTop.scenes[0].nodes.append(len(gltfTop.nodes)-1)
+  else:
+    gltfTop.nodes[parentNodeIndex].children.append(len(gltfTop.nodes)-1)
+  return len(gltfTop.nodes)-1
+
 
