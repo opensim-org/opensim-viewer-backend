@@ -57,7 +57,18 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         return _simbody.DecorativeGeometryImplementation_implementPointGeometry(self, arg0)
 
     def implementLineGeometry(self, arg0):
-        return _simbody.DecorativeGeometryImplementation_implementLineGeometry(self, arg0)
+        point1 = arg0.getPoint1()
+        point2 = arg0.getPoint2()
+        mesh = self.createGLTFLineStrip(point1, point2)
+        self.meshes.append(mesh)
+        meshId = len(self.meshes)-1
+        meshNode = Node(name="gltfName")
+        meshNode.mesh = meshId;
+        nodeIndex = len(self.nodes)
+        self.createExtraAnnotations(meshNode)
+        self.nodes.append(meshNode)
+        self.modelNode.children.append(nodeIndex)
+        return 
 
     def implementBrickGeometry(self, arg0):
         brickData = vtk.vtkCubeSource()
@@ -379,6 +390,50 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         bufferView.byteLength = byteLength
         bufferView.target = bufferViewTarget
         self.bufferViews.append(bufferView);
+
+    def createGLTFLineStrip(self, point0, point1):
+        linePoints = vtk.vtkPoints()
+        linePoints.InsertNextPoint(point0.to_numpy())
+        linePoints.InsertNextPoint(point1.to_numpy())
+        line = vtk.vtkLineSource()
+        line.SetPoints(linePoints)
+        line.Update()
+        pointData = linePoints.GetData();
+        self.writeBufferAndView(pointData, ARRAY_BUFFER)
+        bounds = linePoints.GetBounds()
+        # create accessor
+        pointAccessor = Accessor()
+        pointAccessor.bufferView= len(self.bufferViews)-1
+        pointAccessor.byteOffset = 0
+        pointAccessor.type = VEC3
+        pointAccessor.componentType = FLOAT
+        pointAccessor.count = pointData.GetNumberOfTuples()
+        maxValue = [bounds[1], bounds[3], bounds[5]]
+        minValue = [bounds[0], bounds[2], bounds[4]]
+        pointAccessor.min = minValue
+        pointAccessor.max = maxValue
+        self.accessors.append(pointAccessor)
+        pointAccessorIndex = len(self.accessors)-1
+
+        primitive = Primitive()
+        primitive.mode = 3
+        ia = vtk.vtkUnsignedIntArray()
+        ia.InsertNextValue(0)
+        ia.InsertNextValue(1)
+        self.writeBufferAndView(ia, ELEMENT_ARRAY_BUFFER)
+
+        indexAccessor = Accessor()
+        indexAccessor.bufferView = len(self.bufferViews) - 1;
+        indexAccessor.byteOffset = 0
+        indexAccessor.type = SCALAR
+        indexAccessor.componentType = UNSIGNED_INT
+        indexAccessor.count =  2;
+        primitive.indices = len(self.accessors)
+        self.accessors.append(indexAccessor);
+        primitive.attributes.POSITION= pointAccessorIndex
+        newMesh = Mesh()
+        newMesh.primitives.append(primitive)
+        return newMesh;
 
     def createExtraAnnotations(self, gltfNode: Node):
         gltfNode.extras["path"] = self.currentComponent.getAbsolutePathString()
