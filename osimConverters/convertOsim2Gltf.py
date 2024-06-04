@@ -35,6 +35,7 @@ def convertOsim2Gltf(osimModelFilePath, geometrySearchPath, motionPaths=[]) :
   decorativeGeometryImp.addGroundFrame(model.getGround()); 
   decorativeGeometryImp.addBodyFrames(model);
   decorativeGeometryImp.addDefaultMaterials();
+  
   # Now cycle through all frames and add attached geometry/artifacts by calling generateDecorations
   mdh = model.getDisplayHints();
   mdh.set_show_frames(True);
@@ -45,13 +46,26 @@ def convertOsim2Gltf(osimModelFilePath, geometrySearchPath, motionPaths=[]) :
     # print(comp.getAbsolutePathString())
     comp.generateDecorations(True, mdh, state, adg);
     # we don't know how to handle muscles for now so will leave off, verify everything else displays ok
-    if (comp.getConcreteClassName()!= "GeometryPath"):
-      comp.generateDecorations(False, mdh, state, adg);
+    comp.generateDecorations(False, mdh, state, adg);
     sizeAfter = adg.size()
     if (sizeAfter > sizeBefore):
+      # decorativeGeometryImp is a low level translator that has no access to names
+      # or to the fact that it's translating a decorative geometry that could be a part
+      # of a component. To workaround that, without changing the interface, we introduce
+      # setCurrentComponent and call setDecorativeGeometryIndex so that geometry has unique 
+      # name/ID/context and can share common material
       decorativeGeometryImp.setCurrentComponent(comp)
-    for dg_index  in range(sizeBefore, sizeAfter):
-      adg.at(dg_index).implementGeometry(decorativeGeometryImp)
+      if (comp.getConcreteClassName()=="GeometryPath"):
+        # flag following geometry as belonging to path to share material
+        decorativeGeometryImp.processingPath = True
+
+      for dg_index  in range(sizeBefore, sizeAfter):
+          decorativeGeometryImp.setDecorativeGeometryIndex(dg_index)
+          adg.at(dg_index).implementGeometry(decorativeGeometryImp)
+
+      if (comp.getConcreteClassName()=="GeometryPath"):
+        decorativeGeometryImp.processingPath = False
+
 
   for motIndex in range(len(motionPaths)):
     fileExists = Path(motionPaths[motIndex]).exists()

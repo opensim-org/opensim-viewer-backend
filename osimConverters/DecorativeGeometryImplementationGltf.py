@@ -15,12 +15,15 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
     currentComponent = None # Keep track of which OpenSim::Component being processed so correct annotation is associated
     mapMobilizedBodyIndexToNodes = {}
     mapMobilizedBodyIndexToNodeIndex = {}
-    
+    processingPath = False
+    currentPathMaterial = None
+    mapPathToMaterialIndex = {}
+
     modelNodeIndex = None   # index for root node of the model
     modelNode = None        # reference to the root node representing the model
     groundNode = None       # Node corresponding to Model::Ground
     modelState = None       # reference to state object obtained by initSystem
-    mapTypesToMaterialIndex = {}
+    mapTypesToMaterialIndex = {} # Some opensimTypes share material e.g. Markers
     MaterialGrouping = {}
     model = None
 
@@ -43,9 +46,25 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         self.nodes = self.gltf.nodes
         self.materials = self.gltf.materials
         self.animations = self.gltf.animations
-
+    
     def setCurrentComponent(self, component):
-        self.currentComponent = component;
+        """Keep track of current OpenSim Component being processed, generally the code
+        is agnostic to what component it's handling except for the case where multiple calls 
+        are needed to render one component as is the case with a muscle/path """
+        self.currentComponent = component
+        if (component.getConcreteClassName() == "GeometryPath"):
+            if component not in self.mapPathToMaterialIndex:
+                color = osim.GeometryPath.safeDownCast(component).getColor(self.modelState)
+                color_np = []
+                for index in range(3):
+                    color_np.append(color.get(index))
+                color_np.append(1.0)
+                pathMaterialIndex = self.addMaterialToGltf(component.getAbsolutePathString()+str("Mat"), color_np, 0.5)
+                self.mapPathToMaterialIndex[component] = pathMaterialIndex
+                self.currentPathMaterial = pathMaterialIndex
+
+    def setDecorativeGeometryIndex(self, index):
+        self.dg_index = index
 
     def setState(self, modelState):
         self.modelState = modelState
@@ -57,9 +76,23 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         return _simbody.DecorativeGeometryImplementation_implementPointGeometry(self, arg0)
 
     def implementLineGeometry(self, arg0):
-        return _simbody.DecorativeGeometryImplementation_implementLineGeometry(self, arg0)
+        point1 = arg0.getPoint1()
+        point2 = arg0.getPoint2()
+        mesh = self.createGLTFLineStrip(point1, point2)
+        self.meshes.append(mesh)
+        meshId = len(self.meshes)-1
+        meshNode = Node(name=self.currentComponent.getAbsolutePathString()+str(meshId))
+        meshNode.mesh = meshId;
+        nodeIndex = len(self.nodes)
+        self.createExtraAnnotations(meshNode)
+        self.nodes.append(meshNode)
+        self.modelNode.children.append(nodeIndex)
+        return 
 
     def implementBrickGeometry(self, arg0):
+        """Create GLTF artifacts for a brick that includes 
+        - node that refers to underlying mesh, and transform that goes with it
+        """
         brickData = vtk.vtkCubeSource()
         lengths = arg0.getHalfLengths();
         brickData.SetXLength(lengths.get(0)*2*self.unitConversion)
@@ -123,6 +156,16 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         return _simbody.DecorativeGeometryImplementation_implementMeshGeometry(self, arg0)
 
     def implementMeshFileGeometry(self, arg0):
+        """Function to generate the gltf artifacts corresponding to the passed in mesh file
+        This could be expanded to support all formats readable by vtk though using
+        and linking vtk for this purpose is a bit of an overkill.
+
+        Args:
+            arg0 (DecorativeMeshFile): full path of a file containing mesh
+
+        Raises:
+            ValueError: _description_
+        """
         if (arg0.getMeshFile().casefold().endswith(".vtp")):
             reader = vtk.vtkXMLPolyDataReader()
             reader.SetFileName(arg0.getMeshFile())
@@ -149,10 +192,17 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
             # meshes[meshes.size() - 1]["primitives"][0]["material"] = materials.size();
             # WriteMaterial(materials, oldTextureCount, oldTextureCount != textures.size(), aPart);
         
-        # print("produce mesh", arg0.getMeshFile())
         return
     
     def getNodeIndexForBody(self, body):
+        """Retrieve the index of a gltf-node corresponding to a MobilizedBody
+
+        Args:
+            body (OpenSim::Body): _description_
+
+        Returns:
+            int: index in gltf[nodes]
+        """
         return self.mapMobilizedBodyIndexToNodeIndex[body.getMobilizedBodyIndex()]
     
     def createGLTFMeshFromPolyData(self, arg0, gltfName, polyDataOutput, materialIndex):
@@ -335,7 +385,10 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         # now vertices
         primitive = Primitive()
         primitive.mode = 4
-        primitive.material = mat
+        if (self.processingPath):
+            primitive.material = self.currentPathMaterial
+        else:
+            primitive.material = mat
         meshPolys = triPolys.GetPolys()
         ia = vtk.vtkUnsignedIntArray()
         idList = vtk.vtkIdList()
@@ -379,6 +432,52 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         bufferView.byteLength = byteLength
         bufferView.target = bufferViewTarget
         self.bufferViews.append(bufferView);
+
+    def createGLTFLineStrip(self, point0, point1):
+        linePoints = vtk.vtkPoints()
+        linePoints.InsertNextPoint(point0.to_numpy())
+        linePoints.InsertNextPoint(point1.to_numpy())
+        line = vtk.vtkLineSource()
+        line.SetPoints(linePoints)
+        line.Update()
+        pointData = linePoints.GetData();
+        self.writeBufferAndView(pointData, ARRAY_BUFFER)
+        bounds = linePoints.GetBounds()
+        # create accessor
+        pointAccessor = Accessor()
+        pointAccessor.bufferView= len(self.bufferViews)-1
+        pointAccessor.byteOffset = 0
+        pointAccessor.type = VEC3
+        pointAccessor.componentType = FLOAT
+        pointAccessor.count = pointData.GetNumberOfTuples()
+        maxValue = [bounds[1], bounds[3], bounds[5]]
+        minValue = [bounds[0], bounds[2], bounds[4]]
+        pointAccessor.min = minValue
+        pointAccessor.max = maxValue
+        self.accessors.append(pointAccessor)
+        pointAccessorIndex = len(self.accessors)-1
+
+        primitive = Primitive()
+        primitive.mode = 3
+        if (self.processingPath):
+            primitive.material = self.currentPathMaterial
+        ia = vtk.vtkUnsignedIntArray()
+        ia.InsertNextValue(0)
+        ia.InsertNextValue(1)
+        self.writeBufferAndView(ia, ELEMENT_ARRAY_BUFFER)
+
+        indexAccessor = Accessor()
+        indexAccessor.bufferView = len(self.bufferViews) - 1;
+        indexAccessor.byteOffset = 0
+        indexAccessor.type = SCALAR
+        indexAccessor.componentType = UNSIGNED_INT
+        indexAccessor.count =  2;
+        primitive.indices = len(self.accessors)
+        self.accessors.append(indexAccessor);
+        primitive.attributes.POSITION= pointAccessorIndex
+        newMesh = Mesh()
+        newMesh.primitives.append(primitive)
+        return newMesh;
 
     def createExtraAnnotations(self, gltfNode: Node):
         gltfNode.extras["path"] = self.currentComponent.getAbsolutePathString()
