@@ -19,6 +19,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
     currentPathMaterial = None
     mapPathToMaterialIndex = {}
     mapPathsToNodeIds = {}
+    useTRS = False  # indicate whether transforms should be written as trs or as a matrix
 
     modelNodeIndex = None   # index for root node of the model
     modelNode = None        # reference to the root node representing the model
@@ -213,8 +214,14 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
             self.meshes.append(mesh)
             meshId = len(self.meshes)-1
             meshNode = Node(name=gltfName)
-            meshNode.matrix = self.createMatrixFromTransform(arg0.getTransform(), arg0.getScaleFactors())
-            t, r, s = self.createTRSFromTransform(arg0.getTransform(), arg0.getScaleFactors())
+            if (self.useTRS):
+                t, r, s = self.createTRSFromTransform(arg0.getTransform(), arg0.getScaleFactors())
+                meshNode.translation = t
+                meshNode.scale = s
+                meshNode.rotation = r
+            else:
+                meshNode.matrix = self.createMatrixFromTransform(arg0.getTransform(), arg0.getScaleFactors())
+
             meshNode.mesh = meshId;
             nodeIndex = len(self.nodes)
             self.createExtraAnnotations(meshNode)
@@ -331,6 +338,8 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         xp = xform.p();
         t = [xp.get(0), xp.get(1), xp.get(2)]
         s = [scaleFactors.get(0), scaleFactors.get(1), scaleFactors.get(2)]
+        if (s[0] < 0.):
+            s = [1., 1., 1.]
         q = xr.convertRotationToQuaternion();
         r = [q.get(1), q.get(2), q.get(3), q.get(0)]
         return t, r, s
@@ -493,6 +502,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         Args:
             geometryPath (_type_): _description_
         """
+        self.useTRS = True #intended so that objects created here can be animated later
         gPath = osim.GeometryPath.safeDownCast(geometryPath)
         self.mapPathsToNodeIds[geometryPath] = []
         currentPath = gPath.getCurrentPath(self.modelState)
@@ -508,8 +518,8 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         for i in range(1, adg.size()):
             adg.getElt(i).implementGeometry(self)
             nodeId = len(self.nodes)-1
-            self.mapPathsToNodeIds[geometryPath].append([nodeId, i % 2])
-
+            self.mapPathsToNodeIds[geometryPath].append([nodeId, 1- i % 2])
+        self.useTRS = False
 
     def createExtraAnnotations(self, gltfNode: Node):
         gltfNode.extras["opensimComponentPath"] = self.currentComponent.getAbsolutePathString()
@@ -579,12 +589,19 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
             # For every path in the model, call generate decorations and populate
             # arrays for transforms to incorporate into animation
             for nextPath in self.mapPathsToNodeIds.keys():
+                # print(nextPath.getAbsolutePathString())
                 adg = osim.ArrayDecorativeGeometry()
-                nextPath.generateDecorations(False, self.displayHints, self.modelState, adg)
-                for pathNodeIndex in range(len(self.mapPathsToNodeIds[nextPath])):
-                    print(pathNodeIndex)
-
-                    
+                nextPath.generateDecorations(False, self.displayHints, nextState, adg)
+                pathNodes = self.mapPathsToNodeIds[nextPath]
+                for pathNodeIndex in range(len(pathNodes)):
+                    node_type_n_index = pathNodes[pathNodeIndex]
+                    next_deco_geometry = adg.getElt(pathNodeIndex)
+                    newTransform = next_deco_geometry.getTransform()
+                    # get new geometry from adg, add entry for translation to go from old to new
+                    if (node_type_n_index[1]==0): #translation
+                        for idx in range(3):
+                            pathpoint_translation_map[node_type_n_index[0]][step, idx] = newTransform.p().get(idx)
+        # print(pathpoint_translation_map)
         # create an Animation Node
         animation = Animation()
         if (animationName==""):
@@ -639,7 +656,30 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
             transChannel.target = ttarget
             transChannel.sampler = transSamplerIndex
 
-            
+        for nextPath in self.mapPathsToNodeIds.keys():
+            pathNodes = self.mapPathsToNodeIds[nextPath]
+            for pathNodeIndex in range(len(pathNodes)):
+                node_type_n_index = pathNodes[pathNodeIndex]
+                if (node_type_n_index[1]==0): #translation only
+                    # create Sampler, accessor and channel for each of the corresponding nodes
+                    # Create samplers
+                    transSamplerIndex = len(animation.samplers)
+                    transSampler = AnimationSampler()
+                    transSampler.input = timeAccessorIndex
+                    transSampler.output = createAccessor(self.gltf, pathpoint_translation_map[node_type_n_index[0]], 't')
+                    animation.samplers.append(transSampler)
+                    # Create channels
+                    transChannelIndex = len(animation.channels)
+                    # nextChannelNumber for rotations, nextChannelNumber+1 for translations
+                    transChannel = AnimationChannel()
+                    animation.channels.append(transChannel) 
+                    ttarget = AnimationChannelTarget()
+                    ttarget.node = node_type_n_index[0]
+                    ttarget.path = "translation"
+                    transChannel.target = ttarget
+                    transChannel.sampler = transSamplerIndex
+
+
         # Add builtin cameras
         # first create nodes for the cameras, then accessors that will be used to position/orient them
         cameraNodes = self.createCameraNodes(animationName)
