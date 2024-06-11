@@ -483,50 +483,13 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         self.bufferViews.append(bufferView);
 
     def createGLTFLineStrip(self, point0, point1):
-        linePoints = vtk.vtkPoints()
-        linePoints.InsertNextPoint(point0.to_numpy())
-        linePoints.InsertNextPoint(point1.to_numpy())
-        line = vtk.vtkLineSource()
-        line.SetPoints(linePoints)
-        line.Update()
-        pointData = linePoints.GetData();
-        self.writeBufferAndView(pointData, ARRAY_BUFFER)
-        bounds = linePoints.GetBounds()
-        # create accessor
-        pointAccessor = Accessor()
-        pointAccessor.bufferView= len(self.bufferViews)-1
-        pointAccessor.byteOffset = 0
-        pointAccessor.type = VEC3
-        pointAccessor.componentType = FLOAT
-        pointAccessor.count = pointData.GetNumberOfTuples()
-        maxValue = [bounds[1], bounds[3], bounds[5]]
-        minValue = [bounds[0], bounds[2], bounds[4]]
-        pointAccessor.min = minValue
-        pointAccessor.max = maxValue
-        self.accessors.append(pointAccessor)
-        pointAccessorIndex = len(self.accessors)-1
-
-        primitive = Primitive()
-        primitive.mode = 3
-        if (self.processingPath):
-            primitive.material = self.currentPathMaterial
-        ia = vtk.vtkUnsignedIntArray()
-        ia.InsertNextValue(0)
-        ia.InsertNextValue(1)
-        self.writeBufferAndView(ia, ELEMENT_ARRAY_BUFFER)
-
-        indexAccessor = Accessor()
-        indexAccessor.bufferView = len(self.bufferViews) - 1;
-        indexAccessor.byteOffset = 0
-        indexAccessor.type = SCALAR
-        indexAccessor.componentType = UNSIGNED_INT
-        indexAccessor.count =  2;
-        primitive.indices = len(self.accessors)
-        self.accessors.append(indexAccessor);
-        primitive.attributes.POSITION= pointAccessorIndex
-        newMesh = Mesh()
-        newMesh.primitives.append(primitive)
-        return newMesh;
+        cylSource = vtk.vtkCylinderSource()
+        cylSource.SetRadius(0.005)
+        cylSource.SetCenter(0., 0.5, 0.)
+        cylSource.Update()
+        polyDataOutput = cylSource.GetOutput()
+        mesh = self.addMeshForPolyData(polyDataOutput, self.currentPathMaterial) # populate from polyDataOutput
+        return mesh;
 
     def createGLTFObjectsForGeometryPath(self, geometryPath):
         """This functions creates all the artifacts needed to visualize a GeometryPath. In the case of line muscles
