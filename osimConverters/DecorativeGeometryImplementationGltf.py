@@ -54,16 +54,6 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         is agnostic to what component it's handling except for the case where multiple calls 
         are needed to render one component as is the case with a muscle/path """
         self.currentComponent = component
-        if (component.getConcreteClassName() == "GeometryPath"):
-            if component not in self.mapPathToMaterialIndex:
-                color = osim.GeometryPath.safeDownCast(component).getColor(self.modelState)
-                color_np = []
-                for index in range(3):
-                    color_np.append(color.get(index))
-                color_np.append(1.0)
-                pathMaterialIndex = self.addMaterialToGltf(component.getAbsolutePathString()+str("Mat"), color_np, 0.5)
-                self.mapPathToMaterialIndex[component] = pathMaterialIndex
-                self.currentPathMaterial = pathMaterialIndex
 
     def setDecorativeGeometryIndex(self, index):
         self.dg_index = index
@@ -81,17 +71,18 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         return _simbody.DecorativeGeometryImplementation_implementPointGeometry(self, arg0)
 
     def implementLineGeometry(self, arg0):
-        point1 = arg0.getPoint1()
-        point2 = arg0.getPoint2()
-        mesh = self.createGLTFLineStrip(point1, point2)
-        self.meshes.append(mesh)
-        meshId = len(self.meshes)-1
-        meshNode = Node(name=self.currentComponent.getAbsolutePathString()+str(meshId))
-        meshNode.mesh = meshId;
-        nodeIndex = len(self.nodes)
-        self.createExtraAnnotations(meshNode)
-        self.nodes.append(meshNode)
-        self.modelNode.children.append(nodeIndex)
+        # point1 = arg0.getPoint1()
+        # point2 = arg0.getPoint2()
+        # mesh = self.createGLTFLineStrip(point1, point2)
+        # self.meshes.append(mesh)
+        # meshId = len(self.meshes)-1
+        # meshNode = Node(name=self.currentComponent.getAbsolutePathString()+str(meshId))
+        # meshNode.mesh = meshId;
+        # nodeIndex = len(self.nodes)
+        # self.createExtraAnnotations(meshNode)
+        # self.nodes.append(meshNode)
+        # self.modelNode.children.append(nodeIndex)
+        self.createNodeForLineSegment(arg0)
         return 
 
     def implementBrickGeometry(self, arg0):
@@ -229,6 +220,56 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
             self.mapMobilizedBodyIndexToNodes[arg0.getBodyId()].children.append(nodeIndex)
             return nodeIndex
         return -1
+    
+
+    def createNodeForLineSegment(self, arg0):
+        """_summary_
+
+        Args:
+            arg0 (_type_): DecorativeLine
+            gltfName (_type_): _description_
+
+        Returns:
+            int: index of gltf-node corresponding to passed in line 
+        """
+        point1 = arg0.getPoint1()
+        point2 = arg0.getPoint2()
+        mesh = self.createGLTFLineStrip(osim.Vec3(0.), osim.Vec3(0.0, 1., 0.))
+        self.meshes.append(mesh)
+        meshId = len(self.meshes)-1
+        # Now compute the transform as TRS
+        # Now will use point1 and point2 to compute TRS to take unit line in x direction to point1-point2 in space
+        newY = point2.to_numpy() - point1.to_numpy()
+        newYNorm= np.linalg.norm(newY)
+        newYNormalized = newY / newYNorm
+        origYNormalized = [0.0, 1.0, 0.]
+        newZ = np.cross(origYNormalized, newYNormalized)
+        newZNormalized = newZ / np.linalg.norm(newZ)
+        newXNormalized = np.cross(newYNormalized, newZNormalized)
+        rot33 = osim.Mat33()
+        for row in range(3):
+            rot33.set(row, 0, newXNormalized[row])
+            rot33.set(row, 1, newYNormalized[row])
+            rot33.set(row, 2, newZNormalized[row])
+
+        rot = osim.Rotation()
+        rot.setRotationFromApproximateMat33(rot33)
+        qs = rot.convertRotationToQuaternion()
+        rotation = [qs.get(1), qs.get(2), qs.get(3), qs.get(0)]
+        # translation is point1
+        t = [point1.get(0), point1.get(1), point1.get(2)]
+        # scale is vec2Norm
+        s = newYNorm
+        nodeIndex = len(self.nodes)
+        pathSegmentNode = Node(name="pathsegment:")
+        pathSegmentNode.scale = [1.0, s, 1.0]
+        pathSegmentNode.rotation = rotation
+        pathSegmentNode.translation = t
+        pathSegmentNode.mesh = meshId
+        self.nodes.append(pathSegmentNode)
+        self.modelNode.children.append(nodeIndex)
+
+
 
     def implementTorusGeometry(self, arg0):
         torus=vtk.vtkParametricTorus();
@@ -492,7 +533,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         newMesh.primitives.append(primitive)
         return newMesh;
 
-    def createGLTFObjectsForGeometryPath(self, geometryPath) -> None:
+    def createGLTFObjectsForGeometryPath(self, geometryPath):
         """This functions creates all the artifacts needed to visualize a GeometryPath. In the case of line muscles
         These will be spheres at the PathPoints and a LineStrip for the belly of the path.
         The function also keep track of the associated nodes such that when creating an animation later, proper
@@ -502,7 +543,18 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         Args:
             geometryPath (_type_): _description_
         """
+        if geometryPath not in self.mapPathToMaterialIndex:
+            color = geometryPath.getColor(self.modelState)
+            color_np = []
+            for index in range(3):
+                color_np.append(color.get(index))
+            color_np.append(1.0)
+            pathMaterialIndex = self.addMaterialToGltf(geometryPath.getAbsolutePathString()+str("Mat"), color_np, 0.5)
+            self.mapPathToMaterialIndex[geometryPath] = pathMaterialIndex
+            self.currentPathMaterial = pathMaterialIndex
+            
         self.useTRS = True #intended so that objects created here can be animated later
+        self.processingPath = True
         gPath = osim.GeometryPath.safeDownCast(geometryPath)
         self.mapPathsToNodeIds[geometryPath] = []
         currentPath = gPath.getCurrentPath(self.modelState)
@@ -520,6 +572,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
             nodeId = len(self.nodes)-1
             self.mapPathsToNodeIds[geometryPath].append([nodeId, 1- i % 2])
         self.useTRS = False
+        self.processingPath = False
 
     def createExtraAnnotations(self, gltfNode: Node):
         gltfNode.extras["opensimComponentPath"] = self.currentComponent.getAbsolutePathString()
