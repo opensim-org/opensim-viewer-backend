@@ -20,7 +20,8 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
     mapPathToMaterialIndex = {}
     mapPathsToNodeIds = {}
     useTRS = False  # indicate whether transforms should be written as trs or as a matrix
-
+    computeTRSOnly = False # indicate whether nodes need to be generated (or we're computing TRS only)
+                            # in which case the computed values are stored in saveT, saveR, saveS for later retrieval
     modelNodeIndex = None   # index for root node of the model
     modelNode = None        # reference to the root node representing the model
     groundNode = None       # Node corresponding to Model::Ground
@@ -80,13 +81,38 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         Args:
             arg0 (_type_): decorativeLine
         """
-        point1 = arg0.getPoint1()
-        point2 = arg0.getPoint2()
+        # Now compute the transform as TRS
+        # Now will use point1 and point2 to compute TRS to take unit line in x direction to point1-point2 in space
+        segTrans, segScale, qs = self.convertLineToTRS(arg0)
+
+        rotation = [qs.get(1), qs.get(2), qs.get(3), qs.get(0)]
+        # translation is point1
+        t = [segTrans.get(0), segTrans.get(1), segTrans.get(2)]
+        # scale is vec2Norm
+        s = segScale
+        if (self.computeTRSOnly):
+            self.saveT = t
+            self.saveR = rotation
+            self.saveS = s
+            return
         mesh = self.createGLTFLineStrip(osim.Vec3(0.), osim.Vec3(0.0, 1., 0.))
         self.meshes.append(mesh)
         meshId = len(self.meshes)-1
-        # Now compute the transform as TRS
-        # Now will use point1 and point2 to compute TRS to take unit line in x direction to point1-point2 in space
+
+        nodeIndex = len(self.nodes)
+        pathSegmentNode = Node(name="pathsegment:")
+        pathSegmentNode.scale = [1.0, s, 1.0]
+        pathSegmentNode.rotation = rotation
+        pathSegmentNode.translation = t
+        pathSegmentNode.mesh = meshId
+        self.nodes.append(pathSegmentNode)
+        self.modelNode.children.append(nodeIndex)
+
+        return 
+
+    def convertLineToTRS(self, arg0):
+        point1 = arg0.getPoint1()
+        point2 = arg0.getPoint2()
         newY = point2.to_numpy() - point1.to_numpy()
         newYNorm= np.linalg.norm(newY)
         newYNormalized = newY / newYNorm
@@ -99,25 +125,11 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
             rot33.set(row, 0, newXNormalized[row])
             rot33.set(row, 1, newYNormalized[row])
             rot33.set(row, 2, newZNormalized[row])
-
+        
         rot = osim.Rotation()
         rot.setRotationFromApproximateMat33(rot33)
         qs = rot.convertRotationToQuaternion()
-        rotation = [qs.get(1), qs.get(2), qs.get(3), qs.get(0)]
-        # translation is point1
-        t = [point1.get(0), point1.get(1), point1.get(2)]
-        # scale is vec2Norm
-        s = newYNorm
-        nodeIndex = len(self.nodes)
-        pathSegmentNode = Node(name="pathsegment:")
-        pathSegmentNode.scale = [1.0, s, 1.0]
-        pathSegmentNode.rotation = rotation
-        pathSegmentNode.translation = t
-        pathSegmentNode.mesh = meshId
-        self.nodes.append(pathSegmentNode)
-        self.modelNode.children.append(nodeIndex)
-
-        return 
+        return point1,newYNorm,qs
 
     def implementBrickGeometry(self, arg0):
         """Create GLTF artifacts for a brick that includes 
@@ -254,20 +266,6 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
             self.mapMobilizedBodyIndexToNodes[arg0.getBodyId()].children.append(nodeIndex)
             return nodeIndex
         return -1
-    
-
-    def createNodeForLineSegment(self, arg0):
-        """_summary_
-
-        Args:
-            arg0 (_type_): DecorativeLine
-            gltfName (_type_): _description_
-
-        Returns:
-            int: index of gltf-node corresponding to passed in line 
-        """
-
-
 
     def implementTorusGeometry(self, arg0):
         torus=vtk.vtkParametricTorus();
@@ -652,6 +650,21 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
                     if (node_type_n_index[1]==0): #translation
                         for idx in range(3):
                             pathpoint_translation_map[node_type_n_index[0]][step, idx] = newTransform.p().get(idx)
+                    else:
+                        self.computeTRSOnly = True
+                        adg.getElt(pathNodeIndex).implementGeometry(self)
+                        t, r, s = self.getTRS()
+                        self.computeTRSOnly = False
+                        for idx in range(3):
+                            pathsegment_translation_map[node_type_n_index[0]][step, idx] = t[idx]
+                        for idx in range(4):
+                            pathsegment_rotation_map[node_type_n_index[0]][step, idx] = r[idx]
+                        for idx in range(3):
+                            if (idx ==1):
+                                pathsegment_scale_map[node_type_n_index[0]][step, idx] = s
+                            else:
+                                pathsegment_scale_map[node_type_n_index[0]][step, idx] = 1.0
+
         # print(pathpoint_translation_map)
         # create an Animation Node
         animation = Animation()
@@ -714,23 +727,12 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
                 if (node_type_n_index[1]==0): #translation only
                     # create Sampler, accessor and channel for each of the corresponding nodes
                     # Create samplers
-                    transSamplerIndex = len(animation.samplers)
-                    transSampler = AnimationSampler()
-                    transSampler.input = timeAccessorIndex
-                    transSampler.output = createAccessor(self.gltf, pathpoint_translation_map[node_type_n_index[0]], 't')
-                    animation.samplers.append(transSampler)
-                    # Create channels
-                    transChannelIndex = len(animation.channels)
-                    # nextChannelNumber for rotations, nextChannelNumber+1 for translations
-                    transChannel = AnimationChannel()
-                    animation.channels.append(transChannel) 
-                    ttarget = AnimationChannelTarget()
-                    ttarget.node = node_type_n_index[0]
-                    ttarget.path = "translation"
-                    transChannel.target = ttarget
-                    transChannel.sampler = transSamplerIndex
-
-
+                    self.createPathSampler(pathpoint_translation_map, node_type_n_index, animation, timeAccessorIndex, 't')
+                else: # full trs
+                    self.createPathSampler(pathsegment_translation_map, node_type_n_index, animation, timeAccessorIndex, 't')
+                    self.createPathSampler(pathsegment_rotation_map, node_type_n_index, animation, timeAccessorIndex, 'r')
+                    self.createPathSampler(pathsegment_scale_map, node_type_n_index, animation, timeAccessorIndex, 's')
+                    
         # Add builtin cameras
         # first create nodes for the cameras, then accessors that will be used to position/orient them
         cameraNodes = self.createCameraNodes(animationName)
@@ -741,6 +743,30 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         # Camera X, Y, Z
         # now add samplers and channels for the cameras
         self.createCameraSamplersAndTargets(cameraNodes, animation, cameraTimeAccessorIndex)
+
+    def createPathSampler(self, pathpoint_translation_map, node_type_n_index, animation, timeAccessorIndex, trs):
+        transSamplerIndex = len(animation.samplers)
+        transSampler = AnimationSampler()
+        transSampler.input = timeAccessorIndex
+        transSampler.output = createAccessor(self.gltf, pathpoint_translation_map[node_type_n_index[0]], trs)
+        animation.samplers.append(transSampler)
+                    # Create channels
+        transChannelIndex = len(animation.channels)
+                    # nextChannelNumber for rotations, nextChannelNumber+1 for translations
+        transChannel = AnimationChannel()
+        animation.channels.append(transChannel) 
+        ttarget = AnimationChannelTarget()
+        ttarget.node = node_type_n_index[0]
+        if (trs == 't'):
+            ttarget.path = "translation"
+        else:
+            if (trs == 'r'):
+                ttarget.path = "rotation"
+            else:
+                ttarget.path = "scale"
+    
+        transChannel.target = ttarget
+        transChannel.sampler = transSamplerIndex
 
     def createCameraSamplersAndTargets(self, cameraNodes, animation, cameraTimeAccessorIndex):
         cameraRotation_bbox_arrays = [[0., 0., 0., 1.0], [0., 0., 0.,1.0], 
@@ -804,4 +830,6 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
             cameraNodes.append(addCamera(self.gltf, str("Cam"+animationName+suffix), None))
         return cameraNodes
 
+    def getTRS(self):
+        return self.saveT, self.saveR, self.saveS
 

@@ -139,13 +139,13 @@ def createAccessor(gltf, data_nparray, mode):
   myDataAccessor.byteOffset = 0
   myDataAccessor.componentType = FLOAT
   myDataAccessor.count = len(data_nparray)
-  myDataAccessor.type = VEC3 if (mode == 't') else VEC4
+  myDataAccessor.type = VEC4 if (mode == 'r') else VEC3
   gltf.accessors.append(myDataAccessor)
   accessorIndex =  len(gltf.accessors)-1
   gltf.buffers.append(myDataBuffer)
   gltf.bufferViews.append(myDataBufferView)
   myDataBuffer.byteOffset = 0
-  elementSize = 3 if (mode == 't') else 4
+  elementSize = 4 if (mode == 'r') else 3
   myDataBuffer.byteLength = 4 * elementSize * myDataAccessor.count
   encoded = base64.b64encode(data_nparray).decode("ascii")
   myDataBuffer.uri = f"data:application/octet-stream;base64,{encoded}"
