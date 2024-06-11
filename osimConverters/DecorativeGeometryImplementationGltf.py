@@ -71,18 +71,52 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         return _simbody.DecorativeGeometryImplementation_implementPointGeometry(self, arg0)
 
     def implementLineGeometry(self, arg0):
-        # point1 = arg0.getPoint1()
-        # point2 = arg0.getPoint2()
-        # mesh = self.createGLTFLineStrip(point1, point2)
-        # self.meshes.append(mesh)
-        # meshId = len(self.meshes)-1
-        # meshNode = Node(name=self.currentComponent.getAbsolutePathString()+str(meshId))
-        # meshNode.mesh = meshId;
-        # nodeIndex = len(self.nodes)
-        # self.createExtraAnnotations(meshNode)
-        # self.nodes.append(meshNode)
-        # self.modelNode.children.append(nodeIndex)
-        self.createNodeForLineSegment(arg0)
+        """Create a mesh and a node to represent a segment of a geometry path
+        The geometry of the mesh is a traight line in y direction of length 1, 
+        The actual work is done in the associated traansform rst 
+        This is done so that during animation we know the line to transform rather than complicated
+        relative transform that would be impossible to maintain.
+
+        Args:
+            arg0 (_type_): decorativeLine
+        """
+        point1 = arg0.getPoint1()
+        point2 = arg0.getPoint2()
+        mesh = self.createGLTFLineStrip(osim.Vec3(0.), osim.Vec3(0.0, 1., 0.))
+        self.meshes.append(mesh)
+        meshId = len(self.meshes)-1
+        # Now compute the transform as TRS
+        # Now will use point1 and point2 to compute TRS to take unit line in x direction to point1-point2 in space
+        newY = point2.to_numpy() - point1.to_numpy()
+        newYNorm= np.linalg.norm(newY)
+        newYNormalized = newY / newYNorm
+        origYNormalized = [0.0, 1.0, 0.]
+        newZ = np.cross(origYNormalized, newYNormalized)
+        newZNormalized = newZ / np.linalg.norm(newZ)
+        newXNormalized = np.cross(newYNormalized, newZNormalized)
+        rot33 = osim.Mat33()
+        for row in range(3):
+            rot33.set(row, 0, newXNormalized[row])
+            rot33.set(row, 1, newYNormalized[row])
+            rot33.set(row, 2, newZNormalized[row])
+
+        rot = osim.Rotation()
+        rot.setRotationFromApproximateMat33(rot33)
+        qs = rot.convertRotationToQuaternion()
+        rotation = [qs.get(1), qs.get(2), qs.get(3), qs.get(0)]
+        # translation is point1
+        t = [point1.get(0), point1.get(1), point1.get(2)]
+        # scale is vec2Norm
+        s = newYNorm
+        nodeIndex = len(self.nodes)
+        pathSegmentNode = Node(name="pathsegment:")
+        pathSegmentNode.scale = [1.0, s, 1.0]
+        pathSegmentNode.rotation = rotation
+        pathSegmentNode.translation = t
+        pathSegmentNode.mesh = meshId
+        self.nodes.append(pathSegmentNode)
+        self.modelNode.children.append(nodeIndex)
+
         return 
 
     def implementBrickGeometry(self, arg0):
@@ -232,42 +266,6 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         Returns:
             int: index of gltf-node corresponding to passed in line 
         """
-        point1 = arg0.getPoint1()
-        point2 = arg0.getPoint2()
-        mesh = self.createGLTFLineStrip(osim.Vec3(0.), osim.Vec3(0.0, 1., 0.))
-        self.meshes.append(mesh)
-        meshId = len(self.meshes)-1
-        # Now compute the transform as TRS
-        # Now will use point1 and point2 to compute TRS to take unit line in x direction to point1-point2 in space
-        newY = point2.to_numpy() - point1.to_numpy()
-        newYNorm= np.linalg.norm(newY)
-        newYNormalized = newY / newYNorm
-        origYNormalized = [0.0, 1.0, 0.]
-        newZ = np.cross(origYNormalized, newYNormalized)
-        newZNormalized = newZ / np.linalg.norm(newZ)
-        newXNormalized = np.cross(newYNormalized, newZNormalized)
-        rot33 = osim.Mat33()
-        for row in range(3):
-            rot33.set(row, 0, newXNormalized[row])
-            rot33.set(row, 1, newYNormalized[row])
-            rot33.set(row, 2, newZNormalized[row])
-
-        rot = osim.Rotation()
-        rot.setRotationFromApproximateMat33(rot33)
-        qs = rot.convertRotationToQuaternion()
-        rotation = [qs.get(1), qs.get(2), qs.get(3), qs.get(0)]
-        # translation is point1
-        t = [point1.get(0), point1.get(1), point1.get(2)]
-        # scale is vec2Norm
-        s = newYNorm
-        nodeIndex = len(self.nodes)
-        pathSegmentNode = Node(name="pathsegment:")
-        pathSegmentNode.scale = [1.0, s, 1.0]
-        pathSegmentNode.rotation = rotation
-        pathSegmentNode.translation = t
-        pathSegmentNode.mesh = meshId
-        self.nodes.append(pathSegmentNode)
-        self.modelNode.children.append(nodeIndex)
 
 
 
@@ -552,7 +550,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
             pathMaterialIndex = self.addMaterialToGltf(geometryPath.getAbsolutePathString()+str("Mat"), color_np, 0.5)
             self.mapPathToMaterialIndex[geometryPath] = pathMaterialIndex
             self.currentPathMaterial = pathMaterialIndex
-            
+
         self.useTRS = True #intended so that objects created here can be animated later
         self.processingPath = True
         gPath = osim.GeometryPath.safeDownCast(geometryPath)
