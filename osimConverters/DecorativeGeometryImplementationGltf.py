@@ -81,8 +81,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         Args:
             arg0 (_type_): decorativeLine
         """
-        # Now compute the transform as TRS
-        # Now will use point1 and point2 to compute TRS to take unit line in x direction to point1-point2 in space
+        # Compute the transform that takes the standard line [0,0,0]-[0,1,0] to arg0 as TRS
         segTrans, segScale, qs = self.convertLineToTRS(arg0)
 
         rotation = [qs.get(1), qs.get(2), qs.get(3), qs.get(0)]
@@ -732,7 +731,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
                     self.createPathSampler(pathsegment_translation_map, node_type_n_index, animation, timeAccessorIndex, 't')
                     self.createPathSampler(pathsegment_rotation_map, node_type_n_index, animation, timeAccessorIndex, 'r')
                     self.createPathSampler(pathsegment_scale_map, node_type_n_index, animation, timeAccessorIndex, 's')
-                    
+
         # Add builtin cameras
         # first create nodes for the cameras, then accessors that will be used to position/orient them
         cameraNodes = self.createCameraNodes(animationName)
