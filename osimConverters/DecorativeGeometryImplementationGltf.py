@@ -514,13 +514,22 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         self.useTRS = True #intended so that objects created here can be animated later
         self.processingPath = True
         gPath = osim.GeometryPath.safeDownCast(geometryPath)
+        # inspect path to figure out how many gltf nodes will be needed to display
+        # pathpoints/wrappoints and line-segments
+        # The code below will populate the ids for the corresponding nodes, with extra
+        # allocated points/lines made invisible either by mapping to the last point or having 
+        # a scale of 0.
+        pathArtifacts = self.createPathVisualizationMap(gPath)
+
+
         self.mapPathsToNodeIds[geometryPath] = []
         currentPath = gPath.getCurrentPath(self.modelState)
         hasWrapping = geometryPath.getWrapSet().getSize() > 0
         lastPoint = currentPath.get(0)
         lastPoint.getAbsolutePathString()
         adg = osim.ArrayDecorativeGeometry()
-        gPath.generateDecorations(False, self.displayHints, self.modelState, adg)
+        self.customPathGenerateDecorations(gPath, self.modelState, adg)
+        ###gPath.generateDecorations(False, self.displayHints, self.modelState, adg)
         # create a sphere for adg[0] and associate with lastPoint
         adg.getElt(0).implementGeometry(self)
         nodeId = len(self.nodes)-1
@@ -554,6 +563,8 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         translation_arrays = []
         # following maps are used to keep track of positions of anchor pathpoints
         # as well as translation/rotation/scale to transform path-segments
+        # the latter are sized based on current configuration but should be adapted to account for
+        # points/segments that come in/out due to conditionalPathPoints or Wrapping
         pathpoint_translation_map = {}
         pathsegment_translation_map = {}
         pathsegment_rotation_map = {}
@@ -566,6 +577,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
 
         for nextPath in self.mapPathsToNodeIds.keys():
             pathNodes = self.mapPathsToNodeIds[nextPath]
+            print (nextPath.getAbsolutePathString())
             for pathNodeIndex in range(len(pathNodes)):
                 # For a pathpoint node, we only need translation array
                 # for mesh type nodes, we need translation, rotation and scale
@@ -794,4 +806,69 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
 
     def getTRS(self):
         return self.saveT, self.saveR, self.saveS
+    
+    def createPathVisualizationMap(self, geometryPath):
+        """This function create book-keeping structures so that we preallocate 
+        nodes for potential pathpoints and linesegments so that the number of these
+        is fixed throughout the animation. We'll allocate 4 internal points initially 
+        for every segment that may contain wrapping if it is wrapping around multiple objects
 
+        Args:
+            geometryPath (_type_): _description_
+        """
+        numSegments = geometryPath.getPathPointSet().getSize()-1
+        numWrapObjects = geometryPath.getWrapSet().getSize()
+        expectedTypes = []
+        expectedTypes.append(0) # Start with path point
+        for seg in range(numSegments):
+            expectedTypes.append(0) # Pathpoint followed by a line segment
+            expectedTypes.append(1)
+            # for every wrap object will add 4 points and segment
+        for wrap in range(numWrapObjects):
+            for intermediate in range(4) :
+                expectedTypes.append(0)
+                expectedTypes.append(1)
+        return expectedTypes
+    
+    def customPathGenerateDecorations(self, geometryPath, state, arrayDecorativeGeometry):
+        """This function is a substitute to generateDecorations that produces fixed number of intermediate points
+           per wrapping
+
+        Args:
+            geometryPath (_type_): _description_
+        """
+        pathPoints = geometryPath.getCurrentPath(state)
+        color = geometryPath.getColor(state)
+        lastPoint = pathPoints.get(0)
+        lastPos = lastPoint.getLocationInGround(state)
+        decoSphere = osim.DecorativeSphere(0.005)
+        decoSphere.setColor(color).setBodyId(0)
+        decoSphere.setTransform(osim.Transform().setP(lastPos))
+        arrayDecorativeGeometry.push_back(decoSphere)
+        for i in range(1, pathPoints.getSize()) :
+            point = pathPoints.get(i)
+            pwp = osim.PathWrapPoint.safeDownCast(point)
+            if (pwp == None) :
+                # regular point
+                pos = point.getLocationInGround(state)
+                posTransform = osim.Transform().setP(pos)
+                decoSphere = osim.DecorativeSphere(0.005)
+                decoSphere.setColor(color).setBodyId(0).setTransform(posTransform)
+                arrayDecorativeGeometry.push_back(decoSphere)
+                decoLine = osim.DecorativeLine(lastPos, pos)
+                decoLine.setColor(color).setBodyId(0)
+                arrayDecorativeGeometry.push_back(decoLine)
+                lastPos = pos
+            else :
+                surfacePoints = pwp.getWrapPath(state)
+                X_BG = pwp.getParentFrame().getTransformInGround(state)
+                numPts = surfacePoints.getSize()
+                # pick points at index 0, (size-1)/3, (size-1)*2/3, size-1
+                increment = int((numPts-1)/3)
+                indices = [0, increment, numPts-1-increment, numPts-1]
+                for ind in indices :
+                    posLocal = surfacePoints.get(indices[ind])
+                    pos = X_BG*posLocal # todo replace * by transform
+                    arrayDecorativeGeometry.push_back(osim.DecorativeSphere(0.005).setColor(color).setBodyId(0).setTransform(pos))
+                    arrayDecorativeGeometry.push_back(osim.DecorativeLine(lastPos, pos).setColor(color).setBodyId(0))
+                    lastPos = pos
