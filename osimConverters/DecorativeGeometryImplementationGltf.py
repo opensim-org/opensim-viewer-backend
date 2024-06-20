@@ -538,7 +538,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
             adg.getElt(i).implementGeometry(self)
             nodeId = len(self.nodes)-1
             self.mapPathsToNodeIds[gPath].append([nodeId, pathNodeTypeList[i]])
-        # create padding nodes and lines
+        # create Padding nodes and lines
         lastPos = adg.getElt(adg.size()-1).getTransform().p()
         for i in range(adg.size(), len(pathNodeTypeList)):
             # create a node, keep id in list, make coincident with last point
@@ -586,7 +586,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         pathsegment_translation_map = {}
         pathsegment_rotation_map = {}
         pathsegment_scale_map = {}
-
+        # Create blank arrays to be populated from motion, these are either translations or (TRS)
         bodySet = self.model.getBodySet()
         for bodyIndex in range(bodySet.getSize()):
             rotation_arrays.append(np.zeros((times.getSize(), 4), dtype="float32"))
@@ -631,9 +631,10 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
             for nextPath in self.mapPathsToNodeIds.keys():
                 # print(nextPath.getAbsolutePathString())
                 adg = osim.ArrayDecorativeGeometry()
-                nextPath.generateDecorations(False, self.displayHints, nextState, adg)
+                self.customPathGenerateDecorations(nextPath, nextState, adg)
+                # nextPath.generateDecorations(False, self.displayHints, nextState, adg)
                 pathNodes = self.mapPathsToNodeIds[nextPath]
-                for pathNodeIndex in range(len(pathNodes)):
+                for pathNodeIndex in range(adg.size()):
                     node_type_n_index = pathNodes[pathNodeIndex]
                     next_deco_geometry = adg.getElt(pathNodeIndex)
                     newTransform = next_deco_geometry.getTransform()
@@ -655,6 +656,20 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
                                 pathsegment_scale_map[node_type_n_index[0]][step, idx] = s
                             else:
                                 pathsegment_scale_map[node_type_n_index[0]][step, idx] = 1.0
+                # create Padding nodes and lines
+                lastPos = adg.getElt(adg.size()-1).getTransform().p()
+                for i in range(adg.size(), len(pathNodes)):
+                    # create a node, keep id in list, make coincident with last point
+                    # print("Creating node/line", pathNodes[i])
+                    if (pathNodes[i][0]==0):
+                        posTransform = osim.Transform().setP(lastPos)
+                        decoSphere = osim.DecorativeSphere(0.005)
+                        decoSphere.setBodyId(0).setTransform(posTransform)
+                        decoSphere.implementGeometry(self)
+                    else:
+                        decoLine = osim.DecorativeLine(lastPos, lastPos)
+                        decoLine.setBodyId(0)
+                        decoLine.implementGeometry(self)
 
         # print(pathpoint_translation_map)
         # create an Animation Node
