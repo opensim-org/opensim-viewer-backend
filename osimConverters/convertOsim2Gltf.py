@@ -29,6 +29,7 @@ def convertOsim2Gltf(osimModelFilePath, geometrySearchPath, motionPaths=[]) :
   decorativeGeometryImp = DecorativeGeometryImplementationGltf();
   decorativeGeometryImp.setGltf(gltfInstance)
   decorativeGeometryImp.setState(state)
+  decorativeGeometryImp.setDisplayHints(model.getDisplayHints())
 
   # create Group nodes for toplevel, ground, bodies and all frames
   decorativeGeometryImp.addModelNode(model); 
@@ -46,25 +47,22 @@ def convertOsim2Gltf(osimModelFilePath, geometrySearchPath, motionPaths=[]) :
     # print(comp.getAbsolutePathString())
     comp.generateDecorations(True, mdh, state, adg);
     # we don't know how to handle muscles for now so will leave off, verify everything else displays ok
-    comp.generateDecorations(False, mdh, state, adg);
-    sizeAfter = adg.size()
-    if (sizeAfter > sizeBefore):
-      # decorativeGeometryImp is a low level translator that has no access to names
-      # or to the fact that it's translating a decorative geometry that could be a part
-      # of a component. To workaround that, without changing the interface, we introduce
-      # setCurrentComponent and call setDecorativeGeometryIndex so that geometry has unique 
-      # name/ID/context and can share common material
-      decorativeGeometryImp.setCurrentComponent(comp)
-      if (comp.getConcreteClassName()=="GeometryPath"):
-        # flag following geometry as belonging to path to share material
-        decorativeGeometryImp.processingPath = True
-
-      for dg_index  in range(sizeBefore, sizeAfter):
-          decorativeGeometryImp.setDecorativeGeometryIndex(dg_index)
-          adg.at(dg_index).implementGeometry(decorativeGeometryImp)
-
-      if (comp.getConcreteClassName()=="GeometryPath"):
-        decorativeGeometryImp.processingPath = False
+    if (comp.getConcreteClassName()=="GeometryPath"):
+        # Process GeometryPath, create nodes/meshes for path points and mesh/skin as needed
+        decorativeGeometryImp.createGLTFObjectsForGeometryPath(comp)
+    else:
+        comp.generateDecorations(False, mdh, state, adg);
+        sizeAfter = adg.size()
+        if (sizeAfter > sizeBefore):
+          # decorativeGeometryImp is a low level translator that has no access to names
+          # or to the fact that it's translating a decorative geometry that could be a part
+          # of a component. To workaround that, without changing the interface, we introduce
+          # setCurrentComponent and call setDecorativeGeometryIndex so that geometry has unique 
+          # name/ID/context and can share common material
+          decorativeGeometryImp.setCurrentComponent(comp)
+          for dg_index  in range(sizeBefore, sizeAfter):
+              decorativeGeometryImp.setDecorativeGeometryIndex(dg_index)
+              adg.at(dg_index).implementGeometry(decorativeGeometryImp)
 
 
   for motIndex in range(len(motionPaths)):
