@@ -37,6 +37,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
     nodes = None
     meshes = None
     animations = None
+    pathPointMeshId = None
 
     def setUnitConversion(self, unitConversion):
         self.unitConversion = unitConversion
@@ -162,13 +163,18 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         return _simbody.DecorativeGeometryImplementation_implementCircleGeometry(self, arg0)
 
     def implementSphereGeometry(self, arg0):
-        sphereSource = vtk.vtkSphereSource()
-        sphereSource.SetRadius(arg0.getRadius()*self.unitConversion)
-        sphereSource.SetPhiResolution(16)
-        sphereSource.SetThetaResolution(16)
-        sphereSource.Update()
-        polyDataOutput = sphereSource.GetOutput()
-        self.createGLTFNodeAndMeshFromPolyData(arg0, "Sphere:", polyDataOutput, self.getMaterialIndexByType())
+        if (not self.processingPath or self.pathPointMeshId==None):
+            sphereSource = vtk.vtkSphereSource()
+            sphereSource.SetRadius(arg0.getRadius()*self.unitConversion)
+            sphereSource.SetPhiResolution(16)
+            sphereSource.SetThetaResolution(16)
+            sphereSource.Update()
+            polyDataOutput = sphereSource.GetOutput()
+            self.createGLTFNodeAndMeshFromPolyData(arg0, "Sphere:", polyDataOutput, self.getMaterialIndexByType())
+            if (self.processingPath): # First pathpoint ever created, cache the id for reuse
+                self.pathPointMeshId = len(self.meshes)-1
+        else: # Here processingPath and meshId was already cached
+            self.createGLTFNodeAndMeshFromPolyData(arg0, "Sphere:", None, self.getMaterialIndexByType(), self.pathPointMeshId)
 
     def implementEllipsoidGeometry(self, arg0):
         sphereSource = vtk.vtkSphereSource()
@@ -247,27 +253,29 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         """
         return self.mapMobilizedBodyIndexToNodeIndex[body.getMobilizedBodyIndex()]
     
-    def createGLTFNodeAndMeshFromPolyData(self, arg0, gltfName, polyDataOutput, materialIndex)->int:
-        if (polyDataOutput.GetNumberOfCells() > 0):
+    def createGLTFNodeAndMeshFromPolyData(self, arg0, gltfName, polyDataOutput, materialIndex, reuseMeshId=-1)->int:
+        if (reuseMeshId == -1):
             mesh = self.addMeshForPolyData(polyDataOutput, materialIndex) # populate from polyDataOutput
             self.meshes.append(mesh)
             meshId = len(self.meshes)-1
-            meshNode = Node(name=gltfName)
-            if (self.useTRS):
-                t, r, s = self.createTRSFromTransform(arg0.getTransform(), arg0.getScaleFactors())
-                meshNode.translation = t
-                meshNode.scale = s
-                meshNode.rotation = r
-            else:
-                meshNode.matrix = self.createMatrixFromTransform(arg0.getTransform(), arg0.getScaleFactors())
+        else:
+            meshId = reuseMeshId
 
-            meshNode.mesh = meshId;
-            nodeIndex = len(self.nodes)
-            self.createExtraAnnotations(meshNode)
-            self.nodes.append(meshNode)
-            self.mapMobilizedBodyIndexToNodes[arg0.getBodyId()].children.append(nodeIndex)
-            return nodeIndex
-        return -1
+        meshNode = Node(name=gltfName)
+        if (self.useTRS):
+            t, r, s = self.createTRSFromTransform(arg0.getTransform(), arg0.getScaleFactors())
+            meshNode.translation = t
+            meshNode.scale = s
+            meshNode.rotation = r
+        else:
+            meshNode.matrix = self.createMatrixFromTransform(arg0.getTransform(), arg0.getScaleFactors())
+
+        meshNode.mesh = meshId;
+        nodeIndex = len(self.nodes)
+        self.createExtraAnnotations(meshNode)
+        self.nodes.append(meshNode)
+        self.mapMobilizedBodyIndexToNodes[arg0.getBodyId()].children.append(nodeIndex)
+        return nodeIndex
 
     def implementTorusGeometry(self, arg0):
         torus=vtk.vtkParametricTorus();
@@ -539,7 +547,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
             nodeId = len(self.nodes)-1
             self.mapPathsToNodeIds[gPath].append([nodeId, pathNodeTypeList[i]])
         # create Padding nodes and lines
-        lastPos = adg.getElt(adg.size()-1).getTransform().p()
+        lastPos = adg.getElt(adg.size()-2).getTransform().p()
         for i in range(adg.size(), len(pathNodeTypeList)):
             # create a node, keep id in list, make coincident with last point
             print("Creating node/line", pathNodeTypeList[i])
