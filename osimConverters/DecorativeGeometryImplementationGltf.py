@@ -526,7 +526,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         currentPath = gPath.getCurrentPath(self.modelState)
         hasWrapping = geometryPath.getWrapSet().getSize() > 0
         lastPoint = currentPath.get(0)
-        lastPoint.getAbsolutePathString()
+        # lastPoint.getAbsolutePathString()
         adg = osim.ArrayDecorativeGeometry()
         self.customPathGenerateDecorations(gPath, self.modelState, adg)
         ###gPath.generateDecorations(False, self.displayHints, self.modelState, adg)
@@ -861,14 +861,20 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
                 lastPos = pos
             else :
                 surfacePoints = pwp.getWrapPath(state)
-                X_BG = pwp.getParentFrame().getTransformInGround(state)
                 numPts = surfacePoints.getSize()
+                if (numPts == 0) :
+                    continue
                 # pick points at index 0, (size-1)/3, (size-1)*2/3, size-1
                 increment = int((numPts-1)/3)
                 indices = [0, increment, numPts-1-increment, numPts-1]
                 for ind in indices :
-                    posLocal = surfacePoints.get(indices[ind])
-                    pos = X_BG*posLocal # todo replace * by transform
-                    arrayDecorativeGeometry.push_back(osim.DecorativeSphere(0.005).setColor(color).setBodyId(0).setTransform(pos))
-                    arrayDecorativeGeometry.push_back(osim.DecorativeLine(lastPos, pos).setColor(color).setBodyId(0))
+                    posLocal = surfacePoints.get(ind)
+                    pos = pwp.getParentFrame().findStationLocationInGround(state, posLocal)
+                    posTransform = osim.Transform().setP(pos)
+                    decoSphere = osim.DecorativeSphere(0.005)
+                    decoSphere.setColor(color).setBodyId(0).setTransform(posTransform)
+                    arrayDecorativeGeometry.push_back(decoSphere)
+                    decoLine = osim.DecorativeLine(lastPos, pos)
+                    decoLine.setColor(color).setBodyId(0)
+                    arrayDecorativeGeometry.push_back(decoLine)
                     lastPos = pos
