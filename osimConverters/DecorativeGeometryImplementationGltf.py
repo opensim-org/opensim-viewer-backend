@@ -665,19 +665,29 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
                             else:
                                 pathsegment_scale_map[node_type_n_index[0]][step, idx] = 1.0
                 # create Padding nodes and lines
-                lastPos = adg.getElt(adg.size()-1).getTransform().p()
+                lastPos = adg.getElt(adg.size()-2).getTransform().p()
                 for i in range(adg.size(), len(pathNodes)):
+                    node_type_n_index = pathNodes[i]
                     # create a node, keep id in list, make coincident with last point
                     # print("Creating node/line", pathNodes[i])
-                    if (pathNodes[i][0]==0):
+                    t = lastPos
+                    r = [0., 0., 0., 1.]
+                    s = 0.
+                    if (pathNodes[i][1]==0):
                         posTransform = osim.Transform().setP(lastPos)
-                        decoSphere = osim.DecorativeSphere(0.005)
-                        decoSphere.setBodyId(0).setTransform(posTransform)
-                        decoSphere.implementGeometry(self)
+                        for idx in range(3):
+                            pathpoint_translation_map[node_type_n_index[0]][step, idx] = posTransform.p().get(idx)
+
                     else:
-                        decoLine = osim.DecorativeLine(lastPos, lastPos)
-                        decoLine.setBodyId(0)
-                        decoLine.implementGeometry(self)
+                        for idx in range(3):
+                            pathsegment_translation_map[node_type_n_index[0]][step, idx] = t[idx]
+                        for idx in range(4):
+                            pathsegment_rotation_map[node_type_n_index[0]][step, idx] = r[idx]
+                        for idx in range(3):
+                            if (idx ==1):
+                                pathsegment_scale_map[node_type_n_index[0]][step, idx] = s
+                            else:
+                                pathsegment_scale_map[node_type_n_index[0]][step, idx] = 1.0
 
         # print(pathpoint_translation_map)
         # create an Animation Node
