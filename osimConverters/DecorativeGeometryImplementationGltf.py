@@ -550,7 +550,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         lastPos = adg.getElt(adg.size()-2).getTransform().p()
         for i in range(adg.size(), len(pathNodeTypeList)):
             # create a node, keep id in list, make coincident with last point
-            print("Creating node/line", pathNodeTypeList[i])
+            # print("Creating node/line", pathNodeTypeList[i])
             if (pathNodeTypeList[i]==0):
                 posTransform = osim.Transform().setP(lastPos)
                 decoSphere = osim.DecorativeSphere(0.005)
@@ -602,7 +602,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
 
         for nextPath in self.mapPathsToNodeIds.keys():
             pathNodes = self.mapPathsToNodeIds[nextPath]
-            print (nextPath.getAbsolutePathString())
+            # print (nextPath.getAbsolutePathString())
             for pathNodeIndex in range(len(pathNodes)):
                 # For a pathpoint node, we only need translation array
                 # for mesh type nodes, we need translation, rotation and scale
