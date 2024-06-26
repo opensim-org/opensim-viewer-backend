@@ -22,6 +22,7 @@ from pathlib import Path
 import osimConverters as osimC
 import opensim as osim
 import osimConverters.openSimData2Gltf
+import osimViewerOptions
 '''
 osimViewort class is a utility that embodies the creation and manipulation of a view
 that will be displayed in a jupyter notebook. the parameters passed in will be used to shape/size and otherwise
@@ -30,43 +31,49 @@ One benefit of this approach is that the internals of how the window/canvas is c
 this class and so can be refactored. For now the customizations will go into one of two places:
 - Scene customization: lights, floors, ... 
 - UI customization: size, labels, ...
+
+As of now this supports a single model, however, there's nothing preventing having multiple opensim models
+in the same gltf file.
 '''
 class osimViewport:
     def __init__(self, width, hight):
         self.width = width
         self.height = hight
         self._label = ""
-        self.sceneCameras = []
+        self._options = osimViewerOptions.osimViewerOptions()
 
-    def addModelFile(self, modelFile):
+    def addModelFile(self, modelFile, options=None):
         self._modelFile = modelFile
         self._motions = []
         self._label = ""
-        self.sceneCameras = []
+        if options is not None:
+            self._options = options
 
-    def addDataFile(self, dataFile):
-        self._modelFile = dataFile #this should be cleaned up to clarify
+    def addDataFile(self, dataFile, options=None):
+        self._modelFile = dataFile #this should be fixed as motion rather than model
         self._motions = []
         self._label = ""
-        self.sceneCameras = []
+        if options is not None:
+            self._options = options
 
-    def addModelAndMotionFiles(self, modelFile, motions):
+    def addModelAndMotionFiles(self, modelFile, motions, options=None):
         self._motions = motions
         self._modelFile = modelFile
         self._label = ""
-        self.sceneCameras = []
+        if options is not None:
+            self._options = options
 
     def addSceneCamera(self, sceneCamera):
-        self.sceneCameras.append(sceneCamera)
+        self._options.addCamera(sceneCamera)
 
     def  show(self):
         if (len(self._motions)==0):
-            gltfOutput = osimC.convertNativeFileToGLTF(self._modelFile)
+            gltfOutput = osimC.convertNativeFileToGLTF(self._modelFile, self._options)
         else:
-            gltfOutput = osimC.convertNativeFileSetToGLTF(self._modelFile, self._motions)
+            gltfOutput = osimC.convertNativeFileSetToGLTF(self._modelFile, self._motions, self._options)
         
         # add user provided cameras 
-        for cam in self.sceneCameras:
+        for cam in self._options._additionalCameras:
             osimConverters.openSimData2Gltf.addCamera(gltfOutput, cam.name, None, cam.position, cam.rotation)
         
         shortname = Path(self._modelFile).stem

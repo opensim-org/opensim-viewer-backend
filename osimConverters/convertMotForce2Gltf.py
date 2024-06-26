@@ -18,7 +18,7 @@ from .openSimData2Gltf import *
 # "animations" : [...],
 
 
-def convertMotForce2Gltf(motFilePath, shape) :
+def convertMotForce2Gltf(motFilePath, shape, options) :
     path = Path(motFilePath)
     if not path.exists():
         raise NotADirectoryError("Unable to find file ", path.absolute())
