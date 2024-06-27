@@ -36,7 +36,7 @@ As of now this supports a single model, however, there's nothing preventing havi
 in the same gltf file.
 '''
 class osimViewport:
-    def __init__(self, width, hight):
+    def __init__(self, width=600, hight=300):
         self.width = width
         self.height = hight
         self._label = ""
