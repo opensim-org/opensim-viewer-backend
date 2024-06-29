@@ -522,7 +522,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
             self.mapPathToMaterialIndex[geometryPath] = pathMaterialIndex
             self.currentPathMaterial = pathMaterialIndex
 
-        self.useTRS = True #intended so that objects created here can be animated later
+        self.useTRS = True #intended so that objects created here can be animated with rst streams rather than transforms
         self.processingPath = True
         gPath = osim.GeometryPath.safeDownCast(geometryPath)
         # inspect path to figure out how many gltf nodes will be needed to display
@@ -537,31 +537,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         # lastPoint.getAbsolutePathString()
         adg = osim.ArrayDecorativeGeometry()
         self.customPathGenerateDecorations(gPath, self.modelState, adg)
-        ###gPath.generateDecorations(False, self.displayHints, self.modelState, adg)
-        # create a sphere for adg[0] and associate with lastPoint
-        adg.getElt(0).implementGeometry(self)
-        nodeId = len(self.nodes)-1
-        self.mapPathsToNodeIds[gPath].append([nodeId, 0])
-        for i in range(1, adg.size()):
-            adg.getElt(i).implementGeometry(self)
-            nodeId = len(self.nodes)-1
-            self.mapPathsToNodeIds[gPath].append([nodeId, pathNodeTypeList[i]])
-        # create Padding nodes and lines
-        lastPos = adg.getElt(adg.size()-2).getTransform().p()
-        for i in range(adg.size(), len(pathNodeTypeList)):
-            # create a node, keep id in list, make coincident with last point
-            # print("Creating node/line", pathNodeTypeList[i])
-            if (pathNodeTypeList[i]==0):
-                posTransform = osim.Transform().setP(lastPos)
-                decoSphere = osim.DecorativeSphere(0.005)
-                decoSphere.setColor(color).setBodyId(0).setTransform(posTransform)
-                decoSphere.implementGeometry(self)
-            else:
-                decoLine = osim.DecorativeLine(lastPos, lastPos)
-                decoLine.setColor(color).setBodyId(0)
-                decoLine.implementGeometry(self)
-            nodeId = len(self.nodes)-1
-            self.mapPathsToNodeIds[gPath].append([nodeId, pathNodeTypeList[i]])
+
 
         self.useTRS = False
         self.processingPath = False
@@ -618,7 +594,8 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
                     segment_scale_array = np.zeros((times.getSize(), 3), dtype="float32")
                     pathsegment_scale_map[node_type_n_index[0]] = segment_scale_array
 
-
+        animationFrames = True
+        self.computeTRSOnly = True
         for step in range(stateTraj.getSize()):
             nextState = stateTraj.get(step)
             self.model.realizePosition(nextState)
@@ -651,10 +628,9 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
                         for idx in range(3):
                             pathpoint_translation_map[node_type_n_index[0]][step, idx] = newTransform.p().get(idx)
                     else:
-                        self.computeTRSOnly = True
                         adg.getElt(pathNodeIndex).implementGeometry(self)
                         t, r, s = self.getTRS()
-                        self.computeTRSOnly = False
+                        # self.computeTRSOnly = False
                         for idx in range(3):
                             pathsegment_translation_map[node_type_n_index[0]][step, idx] = t[idx]
                         for idx in range(4):
@@ -688,6 +664,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
                                 pathsegment_scale_map[node_type_n_index[0]][step, idx] = s
                             else:
                                 pathsegment_scale_map[node_type_n_index[0]][step, idx] = 1.0
+        self.computeTRSOnly = False
 
         # print(pathpoint_translation_map)
         # create an Animation Node
@@ -866,18 +843,19 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         Args:
             geometryPath (_type_): _description_
         """
-        numSegments = geometryPath.getPathPointSet().getSize()-1
+        numSegments = geometryPath.getPathPointSet().getSize()-1 #not accounting for wrapping
         numWrapObjects = geometryPath.getWrapSet().getSize()
         expectedTypes = []
         expectedTypes.append(0) # Start with path point
         for seg in range(numSegments):
-            expectedTypes.append(0) # Pathpoint followed by a line segment
-            expectedTypes.append(1)
-        # for every wrap object will add 4 points and segment
-        for wrap in range(numWrapObjects):
-            for intermediate in range(4) :
-                expectedTypes.append(0)
-                expectedTypes.append(1)
+            # for every wrap object will add 4 points and segments per segment, ones that turn out disengaged will be collapsed
+            for wrap in range(numWrapObjects):
+                for intermediate in range(4) :
+                    expectedTypes.append(2) # 2 for WrapPoint
+                    expectedTypes.append(1) # 1 for PathSegment
+            expectedTypes.append(0) # 0 PathPoint 
+            expectedTypes.append(1) # 1 PathSegment
+
         return expectedTypes
     
     def customPathGenerateDecorations(self, geometryPath, state, arrayDecorativeGeometry):
@@ -887,6 +865,9 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         Args:
             geometryPath (_type_): _description_
         """
+        # targetLayout has the sequence of PathPoints, Segments and/or WrapPoints  that will be used downstream
+        # if a node doesn't exist because wrapping didn't engage then it will be collapsed, same with line segments
+        targetLayout = self.mapPathsToNodeTypes[geometryPath]
         pathPoints = geometryPath.getCurrentPath(state)
         color = geometryPath.getColor(state)
         lastPoint = pathPoints.get(0)
@@ -895,19 +876,42 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         decoSphere.setColor(color).setBodyId(0)
         decoSphere.setTransform(osim.Transform().setP(lastPos))
         arrayDecorativeGeometry.push_back(decoSphere)
+        if (not self.computeTRSOnly):
+            decoSphere.implementGeometry(self)
+            nodeId = len(self.nodes)-1
+            self.mapPathsToNodeIds[geometryPath].append([nodeId, 0])
+        targetIndex = 1
         for i in range(1, pathPoints.getSize()) :
             point = pathPoints.get(i)
             pwp = osim.PathWrapPoint.safeDownCast(point)
             if (pwp == None) :
+                # find next regular point and fill in disengaged points/wrapPoints
+                # startIndex = targetIndex
+                # for j in  range(startIndex, len(targetLayout)):
+                #     if (targetLayout[j][0] == 0):
+                #         endIndex = j
+                #         break
+                # collapse points and segments between  startIndex, endIndex
+                # create 4 nodes at lastPos and line segments to connect, add to book-keeping
                 # regular point
                 pos = point.getLocationInGround(state)
                 posTransform = osim.Transform().setP(pos)
                 decoSphere = osim.DecorativeSphere(0.005)
                 decoSphere.setColor(color).setBodyId(0).setTransform(posTransform)
                 arrayDecorativeGeometry.push_back(decoSphere)
+                if (not self.computeTRSOnly):
+                    decoSphere.implementGeometry(self)
+                    nodeId = len(self.nodes)-1
+                    self.mapPathsToNodeIds[geometryPath].append([nodeId, 0])
+                targetIndex += 1
                 decoLine = osim.DecorativeLine(lastPos, pos)
                 decoLine.setColor(color).setBodyId(0)
                 arrayDecorativeGeometry.push_back(decoLine)
+                if (not self.computeTRSOnly):
+                    decoLine.implementGeometry(self)
+                    nodeId = len(self.nodes)-1
+                    self.mapPathsToNodeIds[geometryPath].append([nodeId, 1])
+                targetIndex += 1
                 lastPos = pos
             else :
                 surfacePoints = pwp.getWrapPath(state)
@@ -924,7 +928,38 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
                     decoSphere = osim.DecorativeSphere(0.005)
                     decoSphere.setColor(color).setBodyId(0).setTransform(posTransform)
                     arrayDecorativeGeometry.push_back(decoSphere)
+                    if (not self.computeTRSOnly):
+                        decoSphere.implementGeometry(self)
+                        nodeId = len(self.nodes)-1
+                        self.mapPathsToNodeIds[geometryPath].append([nodeId, 2])
+                    targetIndex += 1
                     decoLine = osim.DecorativeLine(lastPos, pos)
                     decoLine.setColor(color).setBodyId(0)
                     arrayDecorativeGeometry.push_back(decoLine)
+                    if (not self.computeTRSOnly):
+                        decoLine.implementGeometry(self)
+                        nodeId = len(self.nodes)-1
+                        self.mapPathsToNodeIds[geometryPath].append([nodeId, 1])
+                    targetIndex += 1
                     lastPos = pos
+        
+    # for i in range(1, adg.size()):
+    #         adg.getElt(i).implementGeometry(self)
+    #         nodeId = len(self.nodes)-1
+    #         self.mapPathsToNodeIds[gPath].append([nodeId, pathNodeTypeList[i]])
+    #     # create Padding nodes and lines
+    #     lastPos = adg.getElt(adg.size()-2).getTransform().p()
+    #     for i in range(adg.size(), len(pathNodeTypeList)):
+    #         # create a node, keep id in list, make coincident with last point
+    #         # print("Creating node/line", pathNodeTypeList[i])
+    #         if (pathNodeTypeList[i]==0):
+    #             posTransform = osim.Transform().setP(lastPos)
+    #             decoSphere = osim.DecorativeSphere(0.005)
+    #             decoSphere.setColor(color).setBodyId(0).setTransform(posTransform)
+    #             decoSphere.implementGeometry(self)
+    #         else:
+    #             decoLine = osim.DecorativeLine(lastPos, lastPos)
+    #             decoLine.setColor(color).setBodyId(0)
+    #             decoLine.implementGeometry(self)
+    #         nodeId = len(self.nodes)-1
+    #         self.mapPathsToNodeIds[gPath].append([nodeId, pathNodeTypeList[i]])
