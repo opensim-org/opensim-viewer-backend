@@ -867,9 +867,12 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         """
         # targetLayout has the sequence of PathPoints, Segments and/or WrapPoints  that will be used downstream
         # if a node doesn't exist because wrapping didn't engage then it will be collapsed, same with line segments
-        targetLayout = self.mapPathsToNodeTypes[geometryPath]
+        # targetLayout = self.mapPathsToNodeTypes[geometryPath]
         pathPoints = geometryPath.getCurrentPath(state)
+        # First point is non-wrap point by construction
         color = geometryPath.getColor(state)
+        numWrapMax = geometryPath.getWrapSet().getSize()
+        hasWrapping = (numWrapMax != 0)
         lastPoint = pathPoints.get(0)
         lastPos = lastPoint.getLocationInGround(state)
         decoSphere = osim.DecorativeSphere(0.005)
@@ -880,51 +883,25 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
             decoSphere.implementGeometry(self)
             nodeId = len(self.nodes)-1
             self.mapPathsToNodeIds[geometryPath].append([nodeId, 0])
-        targetIndex = 1
+
+        # find indices of non-wrap points in pathPoints
+        nonWrapPointsIndices = [0]
         for i in range(1, pathPoints.getSize()) :
             point = pathPoints.get(i)
             pwp = osim.PathWrapPoint.safeDownCast(point)
-            if (pwp == None) :
-                # find next regular point and fill in disengaged points/wrapPoints
-                # startIndex = targetIndex
-                # for j in  range(startIndex, len(targetLayout)):
-                #     if (targetLayout[j][0] == 0):
-                #         endIndex = j
-                #         break
-                # collapse points and segments between  startIndex, endIndex
-                # create 4 nodes at lastPos and line segments to connect, add to book-keeping
-                # regular point
-                pos = point.getLocationInGround(state)
-                posTransform = osim.Transform().setP(pos)
-                decoSphere = osim.DecorativeSphere(0.005)
-                decoSphere.setColor(color).setBodyId(0).setTransform(posTransform)
-                arrayDecorativeGeometry.push_back(decoSphere)
-                if (not self.computeTRSOnly):
-                    decoSphere.implementGeometry(self)
-                    nodeId = len(self.nodes)-1
-                    self.mapPathsToNodeIds[geometryPath].append([nodeId, 0])
-                targetIndex += 1
-                decoLine = osim.DecorativeLine(lastPos, pos)
-                decoLine.setColor(color).setBodyId(0)
-                arrayDecorativeGeometry.push_back(decoLine)
-                if (not self.computeTRSOnly):
-                    decoLine.implementGeometry(self)
-                    nodeId = len(self.nodes)-1
-                    self.mapPathsToNodeIds[geometryPath].append([nodeId, 1])
-                targetIndex += 1
-                lastPos = pos
-            else :
-                surfacePoints = pwp.getWrapPath(state)
-                numPts = surfacePoints.getSize()
-                if (numPts == 0) :
-                    continue
-                # pick points at index 0, (size-1)/3, (size-1)*2/3, size-1
-                increment = int((numPts-1)/3)
-                indices = [0, increment, numPts-1-increment, numPts-1]
-                for ind in indices :
-                    posLocal = surfacePoints.get(ind)
-                    pos = pwp.getParentFrame().findStationLocationInGround(state, posLocal)
-                    posTransform = osim.Transform().setP(pos)
+            if (pwp == None):
+                nonWrapPointsIndices.append(i)
+
+        # Now handle segments between consecutive entries in nonWrapPointsIndices
+        # if 0 wrapPts in between collapse numWrapMax*4  points and step forward
+        # if for each wrapPt use 4 points if extra collapse
+        for i in range(0, len(nonWrapPointsIndices)-1) :
+            # handle segment between nonWrapPointsIndices[i], [i+1]
+            # lastPoint, lastPos are already set
+            if (nonWrapPointsIndices[i+1]==nonWrapPointsIndices[i]+1):
+                # grab the next numWrapMax*4 points and segments and collapse to lastPos
+                for ind in range(4*numWrapMax) :
+                    posTransform = osim.Transform().setP(lastPos)
                     decoSphere = osim.DecorativeSphere(0.005)
                     decoSphere.setColor(color).setBodyId(0).setTransform(posTransform)
                     arrayDecorativeGeometry.push_back(decoSphere)
@@ -932,34 +909,69 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
                         decoSphere.implementGeometry(self)
                         nodeId = len(self.nodes)-1
                         self.mapPathsToNodeIds[geometryPath].append([nodeId, 2])
-                    targetIndex += 1
-                    decoLine = osim.DecorativeLine(lastPos, pos)
+
+                    decoLine = osim.DecorativeLine(lastPos, lastPos)
                     decoLine.setColor(color).setBodyId(0)
                     arrayDecorativeGeometry.push_back(decoLine)
+                    decoLine.implementGeometry(self)
                     if (not self.computeTRSOnly):
-                        decoLine.implementGeometry(self)
                         nodeId = len(self.nodes)-1
                         self.mapPathsToNodeIds[geometryPath].append([nodeId, 1])
-                    targetIndex += 1
-                    lastPos = pos
-        
-    # for i in range(1, adg.size()):
-    #         adg.getElt(i).implementGeometry(self)
-    #         nodeId = len(self.nodes)-1
-    #         self.mapPathsToNodeIds[gPath].append([nodeId, pathNodeTypeList[i]])
-    #     # create Padding nodes and lines
-    #     lastPos = adg.getElt(adg.size()-2).getTransform().p()
-    #     for i in range(adg.size(), len(pathNodeTypeList)):
-    #         # create a node, keep id in list, make coincident with last point
-    #         # print("Creating node/line", pathNodeTypeList[i])
-    #         if (pathNodeTypeList[i]==0):
-    #             posTransform = osim.Transform().setP(lastPos)
-    #             decoSphere = osim.DecorativeSphere(0.005)
-    #             decoSphere.setColor(color).setBodyId(0).setTransform(posTransform)
-    #             decoSphere.implementGeometry(self)
-    #         else:
-    #             decoLine = osim.DecorativeLine(lastPos, lastPos)
-    #             decoLine.setColor(color).setBodyId(0)
-    #             decoLine.implementGeometry(self)
-    #         nodeId = len(self.nodes)-1
-    #         self.mapPathsToNodeIds[gPath].append([nodeId, pathNodeTypeList[i]])
+            else:
+                # test wrap points in between to see if they're not bogus with 0 points
+                for internalPt in range(nonWrapPointsIndices[i]+1, nonWrapPointsIndices[i+1]):
+                    point = pathPoints.get(internalPt)
+                    pwp = osim.PathWrapPoint.safeDownCast(point)
+                    surfacePoints = pwp.getWrapPath(state)
+                    numPts = surfacePoints.getSize()
+                    if (numPts == 0) :
+                        continue
+                    elif (numPts == 1) :
+                        indices = [0, 0, 0, 0]
+                    elif (numPts == 2) :
+                        indices = [0, 0, 1, 1]
+                    elif (numPts == 3) :
+                        indices = [0, 1, 1, 2]
+                    else:
+                        # pick points at index 0, (size-1)/3, (size-1)*2/3, size-1
+                        increment = int((numPts-1)/3)
+                        indices = [0, increment, numPts-1-increment, numPts-1]
+                    # create 4 points/lineSegments and corresponding gltf nodes
+                    for ind in indices :
+                        posLocal = surfacePoints.get(ind)
+                        pos = pwp.getParentFrame().findStationLocationInGround(state, posLocal)
+                        posTransform = osim.Transform().setP(pos)
+                        decoSphere = osim.DecorativeSphere(0.005)
+                        decoSphere.setColor(color).setBodyId(0).setTransform(posTransform)
+                        arrayDecorativeGeometry.push_back(decoSphere)
+                        if (not self.computeTRSOnly):
+                            decoSphere.implementGeometry(self)
+                            nodeId = len(self.nodes)-1
+                            self.mapPathsToNodeIds[geometryPath].append([nodeId, 2])
+
+                        decoLine = osim.DecorativeLine(lastPos, pos)
+                        decoLine.setColor(color).setBodyId(0)
+                        arrayDecorativeGeometry.push_back(decoLine)
+                        decoLine.implementGeometry(self)
+                        if (not self.computeTRSOnly):
+                            nodeId = len(self.nodes)-1
+                            self.mapPathsToNodeIds[geometryPath].append([nodeId, 1])
+                        lastPos = pos
+        # create last point and line segment here
+        finalPoint = pathPoints.getLast()
+        finalPos = finalPoint.getLocationInGround(state)
+        decoSphere = osim.DecorativeSphere(0.005)
+        decoSphere.setColor(color).setBodyId(0)
+        decoSphere.setTransform(osim.Transform().setP(finalPos))
+        arrayDecorativeGeometry.push_back(decoSphere)
+        if (not self.computeTRSOnly):
+            decoSphere.implementGeometry(self)
+            nodeId = len(self.nodes)-1
+            self.mapPathsToNodeIds[geometryPath].append([nodeId, 0])
+        decoLine = osim.DecorativeLine(lastPos, finalPos)
+        decoLine.setColor(color).setBodyId(0)
+        arrayDecorativeGeometry.push_back(decoLine)
+        decoLine.implementGeometry(self)
+        if (not self.computeTRSOnly):
+            nodeId = len(self.nodes)-1
+            self.mapPathsToNodeIds[geometryPath].append([nodeId, 1])
