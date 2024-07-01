@@ -20,6 +20,8 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
     mapPathToMaterialIndex = {}
     mapPathsToNodeIds = {}
     mapPathsToNodeTypes = {}
+    mapPathsToWrapStatus = {}
+
     useTRS = False  # indicate whether transforms should be written as trs or as a matrix
     computeTRSOnly = False # indicate whether nodes need to be generated (or we're computing TRS only)
                             # in which case the computed values are stored in saveT, saveR, saveS for later retrieval
@@ -873,13 +875,23 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         for seg in range(numSegments):
             expectedTypes.append(0) # Pathpoint followed by a line segment
             expectedTypes.append(1)
-        # for every wrap object will add 4 points and segment
-        for wrap in range(numWrapObjects):
-            for intermediate in range(4) :
-                expectedTypes.append(0)
-                expectedTypes.append(1)
+            # for every wrap object will add 4 points and segment
+            for wrap in range(numWrapObjects):
+                for intermediate in range(4) :
+                    expectedTypes.append(0)
+                    expectedTypes.append(1)
+        segmentMap = []
+        if (numWrapObjects==0):
+            self.mapPathsToWrapStatus[geometryPath] = segmentMap
+            return expectedTypes
+        for seg in range(numSegments):
+            wrapList = []
+            for wrapObjIndex in range(numWrapObjects):
+                wrapList.append(geometryPath.getWrapSet(wrapObjIndex).getWrapObject())
+            segmentMap.append(wrapList)
+        self.mapPathsToWrapStatus[geometryPath] = segmentMap
         return expectedTypes
-    
+
     def customPathGenerateDecorations(self, geometryPath, state, arrayDecorativeGeometry):
         """This function is a substitute to generateDecorations that produces fixed number of intermediate points
            per wrapping
