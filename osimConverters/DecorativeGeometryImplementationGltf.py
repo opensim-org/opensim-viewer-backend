@@ -895,10 +895,10 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         decoSphere.setColor(color).setBodyId(0)
         decoSphere.setTransform(osim.Transform().setP(lastPos))
         arrayDecorativeGeometry.push_back(decoSphere)
-        for i in range(1, pathPoints.getSize()) :
-            point = pathPoints.get(i)
-            pwp = osim.PathWrapPoint.safeDownCast(point)
-            if (pwp == None) :
+        hasWrapping = geometryPath.getWrapSet().getSize() > 0
+        if (not hasWrapping):
+            for i in range(1, pathPoints.getSize()) :
+                point = pathPoints.get(i)
                 # regular point
                 pos = point.getLocationInGround(state)
                 posTransform = osim.Transform().setP(pos)
@@ -909,22 +909,22 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
                 decoLine.setColor(color).setBodyId(0)
                 arrayDecorativeGeometry.push_back(decoLine)
                 lastPos = pos
-            else :
-                surfacePoints = pwp.getWrapPath(state)
-                numPts = surfacePoints.getSize()
-                if (numPts == 0) :
-                    continue
-                # pick points at index 0, (size-1)/3, (size-1)*2/3, size-1
-                increment = int((numPts-1)/3)
-                indices = [0, increment, numPts-1-increment, numPts-1]
-                for ind in indices :
-                    posLocal = surfacePoints.get(ind)
-                    pos = pwp.getParentFrame().findStationLocationInGround(state, posLocal)
-                    posTransform = osim.Transform().setP(pos)
-                    decoSphere = osim.DecorativeSphere(0.005)
-                    decoSphere.setColor(color).setBodyId(0).setTransform(posTransform)
-                    arrayDecorativeGeometry.push_back(decoSphere)
-                    decoLine = osim.DecorativeLine(lastPos, pos)
-                    decoLine.setColor(color).setBodyId(0)
-                    arrayDecorativeGeometry.push_back(decoLine)
-                    lastPos = pos
+        # else :
+        #     surfacePoints = pwp.getWrapPath(state)
+        #     numPts = surfacePoints.getSize()
+        #     if (numPts == 0) :
+        #         continue
+        #     # pick points at index 0, (size-1)/3, (size-1)*2/3, size-1
+        #     increment = int((numPts-1)/3)
+        #     indices = [0, increment, numPts-1-increment, numPts-1]
+        #     for ind in indices :
+        #         posLocal = surfacePoints.get(ind)
+        #         pos = pwp.getParentFrame().findStationLocationInGround(state, posLocal)
+        #         posTransform = osim.Transform().setP(pos)
+        #         decoSphere = osim.DecorativeSphere(0.005)
+        #         decoSphere.setColor(color).setBodyId(0).setTransform(posTransform)
+        #         arrayDecorativeGeometry.push_back(decoSphere)
+        #         decoLine = osim.DecorativeLine(lastPos, pos)
+        #         decoLine.setColor(color).setBodyId(0)
+        #         arrayDecorativeGeometry.push_back(decoLine)
+        #         lastPos = pos
