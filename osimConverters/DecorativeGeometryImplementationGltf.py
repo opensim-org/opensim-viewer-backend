@@ -887,7 +887,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         for seg in range(numSegments):
             wrapList = []
             for wrapObjIndex in range(numWrapObjects):
-                wrapList.append(geometryPath.getWrapSet(wrapObjIndex).getWrapObject())
+                wrapList.append(geometryPath.getWrapSet().get(wrapObjIndex).getWrapObject())
             segmentMap.append(wrapList)
         self.mapPathsToWrapStatus[geometryPath] = segmentMap
         return expectedTypes
@@ -921,22 +921,68 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
                 decoLine.setColor(color).setBodyId(0)
                 arrayDecorativeGeometry.push_back(decoLine)
                 lastPos = pos
-        # else :
-        #     surfacePoints = pwp.getWrapPath(state)
-        #     numPts = surfacePoints.getSize()
-        #     if (numPts == 0) :
-        #         continue
-        #     # pick points at index 0, (size-1)/3, (size-1)*2/3, size-1
-        #     increment = int((numPts-1)/3)
-        #     indices = [0, increment, numPts-1-increment, numPts-1]
-        #     for ind in indices :
-        #         posLocal = surfacePoints.get(ind)
-        #         pos = pwp.getParentFrame().findStationLocationInGround(state, posLocal)
-        #         posTransform = osim.Transform().setP(pos)
-        #         decoSphere = osim.DecorativeSphere(0.005)
-        #         decoSphere.setColor(color).setBodyId(0).setTransform(posTransform)
-        #         arrayDecorativeGeometry.push_back(decoSphere)
-        #         decoLine = osim.DecorativeLine(lastPos, pos)
-        #         decoLine.setColor(color).setBodyId(0)
-        #         arrayDecorativeGeometry.push_back(decoLine)
-        #         lastPos = pos
+        else :
+            expectedSegments = self.mapPathsToWrapStatus[geometryPath]
+            segmentStartIndex = 0
+            for segmentNumber in range(len(expectedSegments)):
+                # find index of first non wrap point 
+                segmentEndIndex = segmentStartIndex+1
+                found = False
+                while (not found):
+                    nextCandidatePoint  = pathPoints.get(segmentEndIndex)
+                    pwp = osim.PathWrapPoint.safeDownCast(nextCandidatePoint)
+                    if (pwp == None):
+                        found = True
+                    else:
+                        segmentEndIndex = segmentEndIndex+1
+                # At this point we have a segment between pathPoints[segmentStartIndex] - pathPoints[segmentEndIndex]
+                # it may have 0 up to #wrapObjects pwp points for each wrap generate 4 points/segments
+                # here we found the real segment
+                numActualWraps = 0
+                for potentialWrapIndex in range(segmentStartIndex+1, segmentEndIndex):
+                    nextWrapPoint = pathPoints.get(potentialWrapIndex)
+                    pwp = osim.PathWrapPoint.safeDownCast(nextWrapPoint)
+                    surfacePoints = pwp.getWrapPath(state)
+                    numPts = surfacePoints.getSize()
+                    if (numPts < 4) : # Fake point, skip over
+                        continue
+                    numActualWraps += 1
+                    increment = int((numPts-1)/3)
+                    indices = [0, increment, numPts-1-increment, numPts-1]
+                    for ind in indices :
+                        posLocal = surfacePoints.get(ind)
+                        pos = pwp.getParentFrame().findStationLocationInGround(state, posLocal)
+                        posTransform = osim.Transform().setP(pos)
+                        decoSphere = osim.DecorativeSphere(0.005)
+                        decoSphere.setColor(color).setBodyId(0).setTransform(posTransform)
+                        arrayDecorativeGeometry.push_back(decoSphere)
+                        decoLine = osim.DecorativeLine(lastPos, pos)
+                        decoLine.setColor(color).setBodyId(0)
+                        arrayDecorativeGeometry.push_back(decoLine)
+                        lastPos = pos
+                # if numActualWraps < expectedSegments[segmentNumber] pad
+                toPad = len(expectedSegments[segmentNumber]) - numActualWraps
+                for pad in range(toPad * 4):
+                        posTransform = osim.Transform().setP(lastPos)
+                        decoSphere = osim.DecorativeSphere(0.005)
+                        decoSphere.setColor(color).setBodyId(0).setTransform(posTransform)
+                        arrayDecorativeGeometry.push_back(decoSphere)
+                        decoLine = osim.DecorativeLine(lastPos, lastPos)
+                        decoLine.setColor(color).setBodyId(0)
+                        arrayDecorativeGeometry.push_back(decoLine)
+                segmentStartIndex = segmentEndIndex
+            # Handle last point and segment here
+            point = pathPoints.get(pathPoints.getSize()-1)
+            # regular point
+            pos = point.getLocationInGround(state)
+            posTransform = osim.Transform().setP(pos)
+            decoSphere = osim.DecorativeSphere(0.005)
+            decoSphere.setColor(color).setBodyId(0).setTransform(posTransform)
+            arrayDecorativeGeometry.push_back(decoSphere)
+            decoLine = osim.DecorativeLine(lastPos, pos)
+            decoLine.setColor(color).setBodyId(0)
+            arrayDecorativeGeometry.push_back(decoLine)
+            lastPos = pos
+
+
+
