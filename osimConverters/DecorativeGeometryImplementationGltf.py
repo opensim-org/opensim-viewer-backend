@@ -18,6 +18,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
     processingPath = False
     currentPathMaterial = None
     mapPathToMaterialIndex = {}
+    mapColorNodeToMaterialIndex = {} # For every path we create a Node whose translation maps to material color in viewer
     mapPathsToNodeIds = {}
     mapPathsToNodeTypes = {}
     mapPathsToWrapStatus = {}
@@ -549,11 +550,11 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
             nodeId = len(self.nodes)-1
             self.mapPathsToNodeIds[gPath].append([nodeId, pathNodeTypeList[i]])
         # create Padding nodes and lines
-        lastPos = adg.getElt(adg.size()-2).getTransform().p()
+        lastPos = adg.getElt(adg.size()-3).getTransform().p()
         for i in range(adg.size(), len(pathNodeTypeList)):
             # create a node, keep id in list, make coincident with last point
             # print("Creating node/line", pathNodeTypeList[i])
-            if (pathNodeTypeList[i]==0):
+            if (pathNodeTypeList[i]==0 or pathNodeTypeList[i]==3):
                 posTransform = osim.Transform().setP(lastPos)
                 decoSphere = osim.DecorativeSphere(0.005)
                 decoSphere.setColor(color).setBodyId(0).setTransform(posTransform)
@@ -564,6 +565,8 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
                 decoLine.implementGeometry(self)
             nodeId = len(self.nodes)-1
             self.mapPathsToNodeIds[gPath].append([nodeId, pathNodeTypeList[i]])
+        # The last node is a color_node whose translation will be sued to set the color of the Path if needed
+        self.mapColorNodeToMaterialIndex[nodeId] = self.mapPathToMaterialIndex[geometryPath]
 
         self.useTRS = False
         self.processingPath = False
@@ -609,7 +612,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
                 # For a pathpoint node, we only need translation array
                 # for mesh type nodes, we need translation, rotation and scale
                 node_type_n_index = pathNodes[pathNodeIndex]
-                if (node_type_n_index[1]==0):
+                if (node_type_n_index[1]==0 or node_type_n_index[1]==3):
                     point_translation_array = np.zeros((times.getSize(), 3), dtype="float32")
                     pathpoint_translation_map[node_type_n_index[0]]= point_translation_array
                 else:
@@ -642,6 +645,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
                 # print(nextPath.getAbsolutePathString())
                 adg = osim.ArrayDecorativeGeometry()
                 self.customPathGenerateDecorations(nextPath, nextState, adg)
+                pathColor = nextPath.getColor(nextState)
                 # nextPath.generateDecorations(False, self.displayHints, nextState, adg)
                 pathNodes = self.mapPathsToNodeIds[nextPath]
                 for pathNodeIndex in range(adg.size()):
@@ -652,6 +656,9 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
                     if (node_type_n_index[1]==0): #translation
                         for idx in range(3):
                             pathpoint_translation_map[node_type_n_index[0]][step, idx] = newTransform.p().get(idx)
+                    elif (node_type_n_index[1]==3): #translation
+                        for idx in range(3):
+                            pathpoint_translation_map[node_type_n_index[0]][step, idx] = pathColor.get(idx)
                     else:
                         self.computeTRSOnly = True
                         adg.getElt(pathNodeIndex).implementGeometry(self)
@@ -750,7 +757,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
             pathNodes = self.mapPathsToNodeIds[nextPath]
             for pathNodeIndex in range(len(pathNodes)):
                 node_type_n_index = pathNodes[pathNodeIndex]
-                if (node_type_n_index[1]==0): #translation only
+                if (node_type_n_index[1]==0 or node_type_n_index[1]==3): #translation only
                     # create Sampler, accessor and channel for each of the corresponding nodes
                     # Create samplers
                     self.createPathSampler(pathpoint_translation_map, node_type_n_index, animation, timeAccessorIndex, 't')
@@ -880,6 +887,8 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
                 for intermediate in range(4) :
                     expectedTypes.append(0)
                     expectedTypes.append(1)
+        # add entry for color node
+        expectedTypes.append(3)
         segmentMap = []
         if (numWrapObjects==0):
             self.mapPathsToWrapStatus[geometryPath] = segmentMap
@@ -983,6 +992,14 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
             decoLine.setColor(color).setBodyId(0)
             arrayDecorativeGeometry.push_back(decoLine)
             lastPos = pos
-
+            
+        # Create a bogus color_node to carry over the path colors, make it hidden
+        # will create a map between pathmaterial and the nodeId so that at runtime
+        # during animation, we set the color of the path based on the translation of the color_node
+        # Path will carry the id of the associated color_node so that player/front end can
+        # wire things up during animation
+        colorSphere = osim.DecorativeSphere(0.0)
+        decoSphere.setColor(color).setBodyId(0)
+        arrayDecorativeGeometry.push_back(colorSphere)
 
 

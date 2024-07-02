@@ -63,7 +63,8 @@ def convertOsim2Gltf(osimModelFilePath, geometrySearchPath, motionPaths=[], opti
           for dg_index  in range(sizeBefore, sizeAfter):
               decorativeGeometryImp.setDecorativeGeometryIndex(dg_index)
               adg.at(dg_index).implementGeometry(decorativeGeometryImp)
-
+  # Add map from Node to Material color as user data
+  gltfInstance.scenes[0].extras["mapNodeTranslationToMaterials"] = decorativeGeometryImp.mapColorNodeToMaterialIndex
 
   for motIndex in range(len(motionPaths)):
     fileExists = Path(motionPaths[motIndex]).exists()
