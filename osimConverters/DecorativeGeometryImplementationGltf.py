@@ -753,8 +753,8 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         transSampler = AnimationSampler()
         transSampler.input = timeAccessorIndex
         transSampler.output = createAccessor(self.gltf, pathpoint_translation_map[node_type_n_index[0]], trs)
-        # if (trs == 'r'):
-        #     transSampler.interpolation = ANIM_STEP
+        if (trs == 'r'):
+            transSampler.interpolation = ANIM_STEP
         animation.samplers.append(transSampler)
                     # Create channels
         transChannelIndex = len(animation.channels)
