@@ -598,9 +598,10 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         pathsegment_scale_map = {}
         # Create blank arrays to be populated from motion, these are either translations or (TRS)
         bodySet = self.model.getBodySet()
+        numTimes = times.getSize()
         for bodyIndex in range(bodySet.getSize()):
-            rotation_arrays.append(np.zeros((times.getSize(), 4), dtype="float32"))
-            translation_arrays.append(np.zeros((times.getSize(), 3), dtype="float32"))
+            rotation_arrays.append(np.zeros((numTimes, 4), dtype="float32"))
+            translation_arrays.append(np.zeros((numTimes, 3), dtype="float32"))
 
         for nextPath in self.mapPathsToNodeIds.keys():
             pathNodes = self.mapPathsToNodeIds[nextPath]
@@ -610,18 +611,19 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
                 # for mesh type nodes, we need translation, rotation and scale
                 node_type_n_index = pathNodes[pathNodeIndex]
                 if (node_type_n_index[1]==0):
-                    point_translation_array = np.zeros((times.getSize(), 3), dtype="float32")
+                    point_translation_array = np.zeros((numTimes, 3), dtype="float32")
                     pathpoint_translation_map[node_type_n_index[0]]= point_translation_array
                 else:
-                    segment_translation_array = np.zeros((times.getSize(), 3), dtype="float32")
+                    segment_translation_array = np.zeros((numTimes, 3), dtype="float32")
                     pathsegment_translation_map[node_type_n_index[0]] = segment_translation_array
-                    segment_rotation_array = np.zeros((times.getSize(), 4), dtype="float32")
+                    segment_rotation_array = np.zeros((numTimes, 4), dtype="float32")
                     pathsegment_rotation_map[node_type_n_index[0]] = segment_rotation_array
-                    segment_scale_array = np.zeros((times.getSize(), 3), dtype="float32")
+                    segment_scale_array = np.zeros((numTimes, 3), dtype="float32")
                     pathsegment_scale_map[node_type_n_index[0]] = segment_scale_array
 
 
         for step in range(stateTraj.getSize()):
+            # print("step:", step)
             nextState = stateTraj.get(step)
             self.model.realizePosition(nextState)
             for bodyIndex in range(bodySet.getSize()):
@@ -666,32 +668,8 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
                                 pathsegment_scale_map[node_type_n_index[0]][step, idx] = s
                             else:
                                 pathsegment_scale_map[node_type_n_index[0]][step, idx] = 1.0
-                # create Padding nodes and lines
-                lastPos = adg.getElt(adg.size()-2).getTransform().p()
-                for i in range(adg.size(), len(pathNodes)):
-                    node_type_n_index = pathNodes[i]
-                    # create a node, keep id in list, make coincident with last point
-                    # print("Creating node/line", pathNodes[i])
-                    t = lastPos
-                    r = [0., 0., 0., 1.]
-                    s = 0.
-                    if (pathNodes[i][1]==0):
-                        posTransform = osim.Transform().setP(lastPos)
-                        for idx in range(3):
-                            pathpoint_translation_map[node_type_n_index[0]][step, idx] = posTransform.p().get(idx)
 
-                    else:
-                        for idx in range(3):
-                            pathsegment_translation_map[node_type_n_index[0]][step, idx] = t[idx]
-                        for idx in range(4):
-                            pathsegment_rotation_map[node_type_n_index[0]][step, idx] = r[idx]
-                        for idx in range(3):
-                            if (idx ==1):
-                                pathsegment_scale_map[node_type_n_index[0]][step, idx] = s
-                            else:
-                                pathsegment_scale_map[node_type_n_index[0]][step, idx] = 1.0
-
-        # print(pathpoint_translation_map)
+        # print(pathsegment_rotation_map)
         # create an Animation Node
         animation = Animation()
         if (animationName==""):
@@ -775,6 +753,8 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         transSampler = AnimationSampler()
         transSampler.input = timeAccessorIndex
         transSampler.output = createAccessor(self.gltf, pathpoint_translation_map[node_type_n_index[0]], trs)
+        # if (trs == 'r'):
+        #     transSampler.interpolation = ANIM_STEP
         animation.samplers.append(transSampler)
                     # Create channels
         transChannelIndex = len(animation.channels)
@@ -944,11 +924,18 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
                     pwp = osim.PathWrapPoint.safeDownCast(nextWrapPoint)
                     surfacePoints = pwp.getWrapPath(state)
                     numPts = surfacePoints.getSize()
-                    if (numPts < 4) : # Fake point, skip over
+                    if (numPts == 0) : # Fake point, skip over
                         continue
+                    elif (numPts ==1) :
+                        indices = [0, 0, 0, 0]
+                    elif (numPts == 2) :
+                        indices = [0, 0, 1, 1]
+                    elif (numPts == 3) :
+                        indices = [0, 1, 1, 2]
+                    else:
+                        increment = int((numPts-1)/3)
+                        indices = [0, increment, numPts-1-increment, numPts-1]
                     numActualWraps += 1
-                    increment = int((numPts-1)/3)
-                    indices = [0, increment, numPts-1-increment, numPts-1]
                     for ind in indices :
                         posLocal = surfacePoints.get(ind)
                         pos = pwp.getParentFrame().findStationLocationInGround(state, posLocal)
@@ -962,27 +949,30 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
                         lastPos = pos
                 # if numActualWraps < expectedSegments[segmentNumber] pad
                 toPad = len(expectedSegments[segmentNumber]) - numActualWraps
+                # print ("num actual wraps=", numActualWraps)
                 for pad in range(toPad * 4):
-                        posTransform = osim.Transform().setP(lastPos)
-                        decoSphere = osim.DecorativeSphere(0.005)
-                        decoSphere.setColor(color).setBodyId(0).setTransform(posTransform)
-                        arrayDecorativeGeometry.push_back(decoSphere)
-                        decoLine = osim.DecorativeLine(lastPos, lastPos)
-                        decoLine.setColor(color).setBodyId(0)
-                        arrayDecorativeGeometry.push_back(decoLine)
+                    posTransform = osim.Transform().setP(lastPos)
+                    decoSphere = osim.DecorativeSphere(0.005)
+                    decoSphere.setColor(color).setBodyId(0).setTransform(posTransform)
+                    arrayDecorativeGeometry.push_back(decoSphere)
+                    decoLine = osim.DecorativeLine(lastPos, lastPos)
+                    decoLine.setColor(color).setBodyId(0)
+                    arrayDecorativeGeometry.push_back(decoLine)
+                
+                point = pathPoints.get(segmentEndIndex)
+                # regular point
+                pos = point.getLocationInGround(state)
+                posTransform = osim.Transform().setP(pos)
+                decoSphere = osim.DecorativeSphere(0.005)
+                decoSphere.setColor(color).setBodyId(0).setTransform(posTransform)
+                arrayDecorativeGeometry.push_back(decoSphere)
+                decoLine = osim.DecorativeLine(lastPos, pos)
+                decoLine.setColor(color).setBodyId(0)
+                arrayDecorativeGeometry.push_back(decoLine)
+                lastPos = pos
+
                 segmentStartIndex = segmentEndIndex
-            # Handle last point and segment here
-            point = pathPoints.get(pathPoints.getSize()-1)
-            # regular point
-            pos = point.getLocationInGround(state)
-            posTransform = osim.Transform().setP(pos)
-            decoSphere = osim.DecorativeSphere(0.005)
-            decoSphere.setColor(color).setBodyId(0).setTransform(posTransform)
-            arrayDecorativeGeometry.push_back(decoSphere)
-            decoLine = osim.DecorativeLine(lastPos, pos)
-            decoLine.setColor(color).setBodyId(0)
-            arrayDecorativeGeometry.push_back(decoLine)
-            lastPos = pos
+
 
 
 
