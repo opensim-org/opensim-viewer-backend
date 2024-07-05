@@ -9,7 +9,7 @@ from pathlib import Path
 from .openSimData2Gltf import *
 from .DecorativeGeometryImplementationGltf import DecorativeGeometryImplementationGltf
 
-def convertOsim2Gltf(osimModelFilePath, geometrySearchPath, motionPaths=[]) :
+def convertOsim2Gltf(osimModelFilePath, geometrySearchPath, motionPaths=[], options=None) :
 
   path = Path(osimModelFilePath)
   osim.ModelVisualizer.addDirToGeometrySearchPaths(geometrySearchPath)
