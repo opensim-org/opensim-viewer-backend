@@ -67,6 +67,9 @@ class osimViewport:
         self._options.addCamera(sceneCamera)
 
     def  show(self):
+        self.saveGltf()
+    
+    def  saveGltf(self, suggestedName=None):
         if (len(self._motions)==0):
             gltfOutput = osimC.convertNativeFileToGLTF(self._modelFile, self._options)
         else:
@@ -76,6 +79,11 @@ class osimViewport:
         for cam in self._options._additionalCameras:
             osimConverters.openSimData2Gltf.addCamera(gltfOutput, cam.name, None, cam.position, cam.rotation)
         
-        shortname = Path(self._modelFile).stem
-        gltfOutput.save(shortname+'.gltf')
-    
+        if (suggestedName==None):
+            shortname = Path(self._modelFile).stem
+            gltfOutput.save(shortname+'.gltf')
+        else:
+            if (suggestedName.endswith(".gltf")):
+                gltfOutput.save(suggestedName)
+            else:
+                gltfOutput.save(suggestedName+'.gltf')
