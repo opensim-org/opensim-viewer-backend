@@ -10,36 +10,37 @@ from .openSimData2Gltf import *
 # for all geometry objects, wil create a node for the mesh as a child of the frame it lives on
 # the node for the frame will correspond to a bodyId, and relative transform
 class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplementation) :
-    unitConversion = 1.0    #1.0 if model is in meters, else set to conversionToMeters factor
-    gltf = None             # resulting  GLTF object used to accumulate nodes, meshes, cameras etc.
-    currentComponent = None # Keep track of which OpenSim::Component being processed so correct annotation is associated
-    mapMobilizedBodyIndexToNodes = {}
-    mapMobilizedBodyIndexToNodeIndex = {}
-    processingPath = False
-    currentPathMaterial = None
-    mapPathToMaterialIndex = {}
-    mapPathsToNodeIds = {}
-    mapPathsToNodeTypes = {}
-    mapPathsToWrapStatus = {}
+    def init(self):
+        self.unitConversion = 1.0    #1.0 if model is in meters, else set to conversionToMeters factor
+        self.gltf = None             # resulting  GLTF object used to accumulate nodes, meshes, cameras etc.
+        self.currentComponent = None # Keep track of which OpenSim::Component being processed so correct annotation is associated
+        self.mapMobilizedBodyIndexToNodes = {}
+        self.mapMobilizedBodyIndexToNodeIndex = {}
+        self.processingPath = False
+        self.currentPathMaterial = None
+        self.mapPathToMaterialIndex = {}
+        self.mapPathsToNodeIds = {}
+        self.mapPathsToNodeTypes = {}
+        self.mapPathsToWrapStatus = {}
 
-    useTRS = False  # indicate whether transforms should be written as trs or as a matrix
-    computeTRSOnly = False # indicate whether nodes need to be generated (or we're computing TRS only)
-                            # in which case the computed values are stored in saveT, saveR, saveS for later retrieval
-    modelNodeIndex = None   # index for root node of the model
-    modelNode = None        # reference to the root node representing the model
-    groundNode = None       # Node corresponding to Model::Ground
-    modelState = None       # reference to state object obtained by initSystem
-    mapTypesToMaterialIndex = {} # Some opensimTypes share material e.g. Markers
-    MaterialGrouping = {}
-    model = None
+        self.useTRS = False  # indicate whether transforms should be written as trs or as a matrix
+        self.computeTRSOnly = False # indicate whether nodes need to be generated (or we're computing TRS only)
+                                # in which case the computed values are stored in saveT, saveR, saveS for later retrieval
+        self.modelNodeIndex = None   # index for root node of the model
+        self.modelNode = None        # reference to the root node representing the model
+        self.groundNode = None       # Node corresponding to Model::Ground
+        self.modelState = None       # reference to state object obtained by initSystem
+        self.mapTypesToMaterialIndex = {} # Some opensimTypes share material e.g. Markers
+        self.MaterialGrouping = {}
+        self.model = None
 
-    accessors = None        # references to arrays within the gltf structure for convenience
-    buffers = None
-    bufferViews = None
-    nodes = None
-    meshes = None
-    animations = None
-    pathPointMeshId = None
+        self.accessors = None        # references to arrays within the gltf structure for convenience
+        self.buffers = None
+        self.bufferViews = None
+        self.nodes = None
+        self.meshes = None
+        self.animations = None
+        self.pathPointMeshId = None
 
     def setUnitConversion(self, unitConversion):
         self.unitConversion = unitConversion

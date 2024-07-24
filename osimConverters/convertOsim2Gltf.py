@@ -27,6 +27,7 @@ def convertOsim2Gltf(osimModelFilePath, geometrySearchPath, motionPaths=[], opti
   # create a DecorativeGeometryImplementationGltf instance then iterate through
   # the model querying each component to "render" to the GLTF 
   decorativeGeometryImp = DecorativeGeometryImplementationGltf();
+  decorativeGeometryImp.init()
   decorativeGeometryImp.setGltf(gltfInstance)
   decorativeGeometryImp.setState(state)
   decorativeGeometryImp.setDisplayHints(model.getDisplayHints())
