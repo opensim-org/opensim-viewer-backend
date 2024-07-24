@@ -737,16 +737,16 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
                     self.createPathSampler(pathsegment_rotation_map, node_type_n_index, animation, timeAccessorIndex, 'r')
                     self.createPathSampler(pathsegment_scale_map, node_type_n_index, animation, timeAccessorIndex, 's')
 
-        # Add builtin cameras
-        # first create nodes for the cameras, then accessors that will be used to position/orient them
-        cameraNodes = self.createCameraNodes(animationName)
-        # create time sampler for the camera
-        cameraTimes = np.array([timeColumn[0], timeColumn[timeColumn.size()-1]])
-        addTimeStampsAccessor(self.gltf, cameraTimes)
-        cameraTimeAccessorIndex = len(self.gltf.accessors)-1  
-        # Camera X, Y, Z
-        # now add samplers and channels for the cameras
-        self.createCameraSamplersAndTargets(cameraNodes, animation, cameraTimeAccessorIndex)
+        # Add builtin cameras (disabled for CMBBE)
+        # # first create nodes for the cameras, then accessors that will be used to position/orient them
+        # cameraNodes = self.createCameraNodes(animationName)
+        # # create time sampler for the camera
+        # cameraTimes = np.array([timeColumn[0], timeColumn[timeColumn.size()-1]])
+        # addTimeStampsAccessor(self.gltf, cameraTimes)
+        # cameraTimeAccessorIndex = len(self.gltf.accessors)-1  
+        # # Camera X, Y, Z
+        # # now add samplers and channels for the cameras
+        # self.createCameraSamplersAndTargets(cameraNodes, animation, cameraTimeAccessorIndex)
 
     def createPathSampler(self, pathpoint_translation_map, node_type_n_index, animation, timeAccessorIndex, trs):
         transSamplerIndex = len(animation.samplers)
