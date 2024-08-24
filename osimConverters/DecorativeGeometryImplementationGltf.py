@@ -217,27 +217,15 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         Raises:
             ValueError: _description_
         """
-        if (arg0.getMeshFile().casefold().endswith(".vtp")):
-            reader = vtk.vtkXMLPolyDataReader()
-            reader.SetFileName(arg0.getMeshFile())
-            reader.Update()
-            polyDataOutput = reader.GetOutput()
-        elif (arg0.getMeshFile().casefold().endswith(".stl")):
-            reader = vtk.vtkSTLReader()
-            reader.SetFileName(arg0.getMeshFile())
-            reader.Update()
-            polyDataOutput = reader.GetOutput()
-        elif (arg0.getMeshFile().casefold().endswith(".obj")):
-            reader = vtk.vtkOBJReader()
-            reader.SetFileName(arg0.getMeshFile())
-            reader.Update()
-            polyDataOutput = reader.GetOutput()
+        if (arg0.getMeshFile().casefold().endswith(".vtp") or
+            arg0.getMeshFile().casefold().endswith(".stl") or 
+            arg0.getMeshFile().casefold().endswith(".obj")):
+                polygonalMesh = osim.PolygonalMesh()
+                polygonalMesh.loadFile(arg0.getMeshFile())
+                self.createGLTFNodeAndMeshFromPolygonalMesh(arg0, "Mesh"+arg0.getMeshFile(), polygonalMesh, self.getMaterialIndexByType())
         else:
             raise ValueError("Unsupported file extension")
         #self.createGLTFNodeAndMeshFromPolyData(arg0, "Mesh"+arg0.getMeshFile(), polyDataOutput, self.getMaterialIndexByType())
-        polygonalMesh = osim.PolygonalMesh()
-        polygonalMesh.loadFile(arg0.getMeshFile())
-        self.createGLTFNodeAndMeshFromPolygonalMesh(arg0, "Mesh"+arg0.getMeshFile(), polygonalMesh, self.getMaterialIndexByType())
             #     InlineData, SaveNormal, SaveBatchId);
             # rendererNode["children"].emplace_back(nodes.size() - 1);
             # size_t oldTextureCount = textures.size();
@@ -298,7 +286,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
             int: id of the mesh created in the gltf format
         """
         if (reuseMeshId == -1):
-            mesh = self.addMeshForPolygonalMesh(polygonalMesh, materialIndex) # populate from polyDataOutput
+            mesh = self.addGltfMeshForPolygonalMesh(polygonalMesh, materialIndex) # populate from polyDataOutput
             self.meshes.append(mesh)
             meshId = len(self.meshes)-1
         else:
@@ -517,7 +505,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         newMesh.primitives.append(primitive)
         return newMesh;
 
-    def addMeshForPolygonalMesh(self, polyMesh: osim.PolygonalMesh, mat: int):
+    def addGltfMeshForPolygonalMesh(self, polyMesh: osim.PolygonalMesh, mat: int):
         """_summary_
 
         Args:
