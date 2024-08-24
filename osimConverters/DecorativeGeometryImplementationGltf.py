@@ -234,7 +234,10 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
             polyDataOutput = reader.GetOutput()
         else:
             raise ValueError("Unsupported file extension")
-        self.createGLTFNodeAndMeshFromPolyData(arg0, "Mesh"+arg0.getMeshFile(), polyDataOutput, self.getMaterialIndexByType())
+        #self.createGLTFNodeAndMeshFromPolyData(arg0, "Mesh"+arg0.getMeshFile(), polyDataOutput, self.getMaterialIndexByType())
+        polygonalMesh = osim.PolygonalMesh()
+        polygonalMesh.loadFile(arg0.getMeshFile())
+        self.createGLTFNodeAndMeshFromPolygonalMesh(arg0, "Mesh"+arg0.getMeshFile(), polygonalMesh, self.getMaterialIndexByType())
             #     InlineData, SaveNormal, SaveBatchId);
             # rendererNode["children"].emplace_back(nodes.size() - 1);
             # size_t oldTextureCount = textures.size();
@@ -279,6 +282,44 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         self.nodes.append(meshNode)
         self.mapMobilizedBodyIndexToNodes[arg0.getBodyId()].children.append(nodeIndex)
         return nodeIndex
+
+
+    def createGLTFNodeAndMeshFromPolygonalMesh(self, arg0, gltfName, polygonalMesh, materialIndex, reuseMeshId=-1)->int:
+        """_summary_
+
+        Args:
+            arg0 (_type_): SimTK::DecorativeMesh
+            gltfName (_type_): name to be associated with the mesh
+            polygonalMesh (_type_): SimTK::PolygonalMesh 
+            materialIndex (_type_): index in gltf structure of the material associated with mesh
+            reuseMeshId (int, optional): whether to reuse existing mesh (e.g. Pathpoint or Markers to avoid size inflation)
+
+        Returns:
+            int: id of the mesh created in the gltf format
+        """
+        if (reuseMeshId == -1):
+            mesh = self.addMeshForPolygonalMesh(polygonalMesh, materialIndex) # populate from polyDataOutput
+            self.meshes.append(mesh)
+            meshId = len(self.meshes)-1
+        else:
+            meshId = reuseMeshId
+
+        meshNode = Node(name=gltfName)
+        if (self.useTRS):
+            t, r, s = self.createTRSFromTransform(arg0.getTransform(), arg0.getScaleFactors())
+            meshNode.translation = t
+            meshNode.scale = s
+            meshNode.rotation = r
+        else:
+            meshNode.matrix = self.createMatrixFromTransform(arg0.getTransform(), arg0.getScaleFactors())
+
+        meshNode.mesh = meshId;
+        nodeIndex = len(self.nodes)
+        self.createExtraAnnotations(meshNode)
+        self.nodes.append(meshNode)
+        self.mapMobilizedBodyIndexToNodes[arg0.getBodyId()].children.append(nodeIndex)
+        return nodeIndex
+
 
     def implementTorusGeometry(self, arg0):
         torus=vtk.vtkParametricTorus();
@@ -472,6 +513,114 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         self.accessors.append(indexAccessor);
         primitive.attributes.POSITION= pointAccessorIndex
         primitive.attributes.NORMAL = normalsAccessorIndex
+        newMesh = Mesh()
+        newMesh.primitives.append(primitive)
+        return newMesh;
+
+    def addMeshForPolygonalMesh(self, polyMesh: osim.PolygonalMesh, mat: int):
+        """_summary_
+
+        Args:
+            polyMesh (osim.PolygonalMesh): SimTK::PolygonalMesh
+            mat (int): index of associated material in gltf
+
+        Returns:
+            _type_: _description_
+        """
+        numVerts = polyMesh.getNumVertices()
+        npArray_points = np.zeros((numVerts, 3), dtype="float32")
+        for v in range(numVerts):
+            npArray_points[v] = polyMesh.getVertexPosition(v).to_numpy()
+
+        # convert arbitrary side faces into triangles as supported by gltf format
+        numFaces = polyMesh.getNumFaces()
+        trisList = []
+        for f in range(numFaces):
+            nv = polyMesh.getNumVerticesForFace(f)
+            vertexIdList = []
+            for i in range(nv):
+                vertexIdList.append(polyMesh.getFaceVertex(f, i))
+            # Group indices into triangles
+            trisList.append(vertexIdList[:3])
+            for tri in range(3, len(vertexIdList)):
+                trisList.append([vertexIdList[0], vertexIdList[tri-1], vertexIdList[tri]])
+
+        byteLength = numVerts*3*4;
+        encoded_result = base64.b64encode(npArray_points).decode("ascii")
+        buffer = Buffer()
+        buffer.byteLength = byteLength;
+        buffer.uri = f"data:application/octet-stream;base64,{encoded_result}";
+        self.buffers.append(buffer);
+    
+        bufferView = BufferView()
+        bufferView.buffer = len(self.buffers)-1
+        bufferView.byteOffset = 0
+        bufferView.byteLength = byteLength
+        bufferView.target = ARRAY_BUFFER
+        self.bufferViews.append(bufferView);
+
+        # create accessor
+        pointAccessor = Accessor()
+        pointAccessor.bufferView= len(self.bufferViews)-1
+        pointAccessor.byteOffset = 0
+        pointAccessor.type = VEC3
+        pointAccessor.componentType = FLOAT
+        pointAccessor.count = numVerts
+        # maxValue = [bounds[1], bounds[3], bounds[5]]
+        # minValue = [bounds[0], bounds[2], bounds[4]]
+        # pointAccessor.min = minValue
+        # pointAccessor.max = maxValue
+        self.accessors.append(pointAccessor)
+        pointAccessorIndex = len(self.accessors)-1
+
+        # Now the normals
+        # normalsFilter = vtk.vtkPolyDataNormals();
+        # normalsFilter.SetInputData(triPolys)
+        # normalsFilter.ComputePointNormalsOn()
+        # normalsFilter.Update()
+        # normalsData = normalsFilter.GetOutput().GetPointData().GetNormals();
+        # self.writeBufferAndView(normalsData, ARRAY_BUFFER)
+        # normalsAccessor = Accessor()
+        # normalsAccessor.bufferView= len(self.bufferViews)-1
+        # normalsAccessor.byteOffset = 0
+        # normalsAccessor.type = VEC3
+        # normalsAccessor.componentType = FLOAT
+        # normalsAccessor.count = pointData.GetNumberOfTuples()
+        # self.accessors.append(normalsAccessor)
+        # normalsAccessorIndex = len(self.accessors)-1
+
+        # now vertices
+        primitive = Primitive()
+        primitive.mode = 4
+        if (self.processingPath):
+            primitive.material = self.currentPathMaterial
+        else:
+            primitive.material = mat
+
+        byteLength = len(trisList)*3*4;
+        npArray_indices = np.array(trisList, dtype=np.uint32)
+        encoded_result = base64.b64encode(npArray_indices).decode("ascii")
+        buffer = Buffer()
+        buffer.byteLength = byteLength;
+        buffer.uri = f"data:application/octet-stream;base64,{encoded_result}";
+        self.buffers.append(buffer);
+    
+        bufferView = BufferView()
+        bufferView.buffer = len(self.buffers)-1
+        bufferView.byteOffset = 0
+        bufferView.byteLength = byteLength
+        bufferView.target = ARRAY_BUFFER
+        self.bufferViews.append(bufferView);
+        indexAccessor = Accessor()
+        indexAccessor.bufferView = len(self.bufferViews) - 1;
+        indexAccessor.byteOffset = 0
+        indexAccessor.type = SCALAR
+        indexAccessor.componentType = UNSIGNED_INT
+        indexAccessor.count =  len(trisList)*3;
+        primitive.indices = len(self.accessors)
+        self.accessors.append(indexAccessor);
+        primitive.attributes.POSITION= pointAccessorIndex
+        # primitive.attributes.NORMAL = normalsAccessorIndex
         newMesh = Mesh()
         newMesh.primitives.append(primitive)
         return newMesh;
