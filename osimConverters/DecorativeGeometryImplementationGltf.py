@@ -165,20 +165,13 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
             self.createGLTFNodeAndMeshFromPolygonalMesh(arg0, "Sphere:", None, self.getMaterialIndexByType(), self.pathPointMeshId)
 
     def implementEllipsoidGeometry(self, arg0):
-        sphereSource = vtk.vtkSphereSource()
-        sphereSource.SetRadius(1.0*self.unitConversion)
-        sphereSource.SetPhiResolution(16)
-        sphereSource.SetThetaResolution(16)
+        sphereMesh = osim.PolygonalMesh().createSphereMesh(1*self.unitConversion, 3)
+        composedScale = arg0.getRadii()
+        for i in range(3):
+            composedScale.set(i, composedScale.get(i)*arg0.getScaleFactors().get(i))
+        arg0.setScaleFactors(composedScale)
         # Make a stretching transform to take the sphere into an ellipsoid
-        stretch = vtk.vtkTransformPolyDataFilter();
-        stretchSphereToEllipsoid = vtk.vtkTransform();
-        radiiVec3 = arg0.getRadii()
-        stretchSphereToEllipsoid.Scale(radiiVec3[0], radiiVec3[1], radiiVec3[2]);
-        stretch.SetTransform(stretchSphereToEllipsoid);
-        stretch.SetInputConnection(sphereSource.GetOutputPort());
-        stretch.Update()
-        polyDataOutput = stretch.GetOutput()
-        self.createGLTFNodeAndMeshFromPolyData(arg0, "Ellipsoid:", polyDataOutput, self.getMaterialIndexByType())
+        self.createGLTFNodeAndMeshFromPolygonalMesh(arg0, "Ellipsoid:", sphereMesh, self.getMaterialIndexByType())
         return
 
     def implementFrameGeometry(self, arg0):
