@@ -141,24 +141,14 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         """Create GLTF artifacts for a brick that includes 
         - node that refers to underlying mesh, and transform that goes with it
         """
-        brickData = vtk.vtkCubeSource()
-        lengths = arg0.getHalfLengths();
-        brickData.SetXLength(lengths.get(0)*2*self.unitConversion)
-        brickData.SetYLength(lengths.get(1)*2*self.unitConversion)
-        brickData.SetZLength(lengths.get(2)*2*self.unitConversion)
-        brickData.Update()
-        polyDataOutput = brickData.GetOutput();
-        self.createGLTFNodeAndMeshFromPolyData(arg0, "Brick:", polyDataOutput, self.getMaterialIndexByType())
+        brickMesh = osim.PolygonalMesh().createBrickMesh(arg0.getHalfLengths())
+        self.createGLTFNodeAndMeshFromPolygonalMesh(arg0, "Brick:", brickMesh, self.getMaterialIndexByType())
         # print("produce brick")
         return 
     
     def implementCylinderGeometry(self, arg0):
-        cylData = vtk.vtkCylinderSource()
-        cylData.SetRadius(arg0.getRadius()*self.unitConversion)
-        cylData.SetHeight(arg0.getHalfHeight()*self.unitConversion)
-        cylData.Update()
-        polyDataOutput = cylData.GetOutput();
-        self.createGLTFNodeAndMeshFromPolyData(arg0, "Cylinder:", polyDataOutput, self.getMaterialIndexByType())
+        cylMesh = osim.PolygonalMesh().createCylinderMesh(osim.UnitVec3(0., 1., 0.), arg0.getRadius()*self.unitConversion, arg0.getHalfHeight()*self.unitConversion)
+        self.createGLTFNodeAndMeshFromPolygonalMesh(arg0, "Cylinder:", cylMesh, self.getMaterialIndexByType())
         # print("produce cylinder", arg0.getHalfHeight(), arg0.getRadius())
         return
 
@@ -167,17 +157,12 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
 
     def implementSphereGeometry(self, arg0):
         if (not self.processingPath or self.pathPointMeshId==None):
-            sphereSource = vtk.vtkSphereSource()
-            sphereSource.SetRadius(arg0.getRadius()*self.unitConversion)
-            sphereSource.SetPhiResolution(16)
-            sphereSource.SetThetaResolution(16)
-            sphereSource.Update()
-            polyDataOutput = sphereSource.GetOutput()
-            self.createGLTFNodeAndMeshFromPolyData(arg0, "Sphere:", polyDataOutput, self.getMaterialIndexByType())
+            sphereMesh = osim.PolygonalMesh().createSphereMesh(arg0.getRadius()*self.unitConversion, 3)
+            self.createGLTFNodeAndMeshFromPolygonalMesh(arg0, "Sphere:", sphereMesh, self.getMaterialIndexByType())
             if (self.processingPath): # First pathpoint ever created, cache the id for reuse
                 self.pathPointMeshId = len(self.meshes)-1
         else: # Here processingPath and meshId was already cached
-            self.createGLTFNodeAndMeshFromPolyData(arg0, "Sphere:", None, self.getMaterialIndexByType(), self.pathPointMeshId)
+            self.createGLTFNodeAndMeshFromPolygonalMesh(arg0, "Sphere:", None, self.getMaterialIndexByType(), self.pathPointMeshId)
 
     def implementEllipsoidGeometry(self, arg0):
         sphereSource = vtk.vtkSphereSource()
@@ -208,8 +193,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
 
     def implementMeshFileGeometry(self, arg0):
         """Function to generate the gltf artifacts corresponding to the passed in mesh file
-        This could be expanded to support all formats readable by vtk though using
-        and linking vtk for this purpose is a bit of an overkill.
+        This could be expanded to support all formats readable by SimTK parsers.
 
         Args:
             arg0 (DecorativeMeshFile): full path of a file containing mesh
