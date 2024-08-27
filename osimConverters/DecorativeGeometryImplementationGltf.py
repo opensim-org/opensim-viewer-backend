@@ -531,10 +531,9 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         pointAccessor.type = VEC3
         pointAccessor.componentType = FLOAT
         pointAccessor.count = numVerts
-        # maxValue = [bounds[1], bounds[3], bounds[5]]
-        # minValue = [bounds[0], bounds[2], bounds[4]]
-        # pointAccessor.min = minValue
-        # pointAccessor.max = maxValue
+
+        # pointAccessor.min.append([min_pt[0], min_pt[1], min_pt[2]])
+        # pointAccessor.max.append([max_pt[0], max_pt[1], max_pt[2]])
         self.accessors.append(pointAccessor)
         pointAccessorIndex = len(self.accessors)-1
 
@@ -574,7 +573,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         bufferView.buffer = len(self.buffers)-1
         bufferView.byteOffset = 0
         bufferView.byteLength = byteLength
-        bufferView.target = ARRAY_BUFFER
+        bufferView.target = ELEMENT_ARRAY_BUFFER
         self.bufferViews.append(bufferView);
         indexAccessor = Accessor()
         indexAccessor.bufferView = len(self.bufferViews) - 1;
@@ -611,11 +610,6 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         self.bufferViews.append(bufferView);
 
     def createGLTFLineStrip(self, point0, point1):
-        # cylSource = vtk.vtkCylinderSource()
-        # cylSource.SetRadius(0.005)
-        # cylSource.SetCenter(0., 0.5, 0.)
-        # cylSource.Update()
-        # polyDataOutput = cylSource.GetOutput()
         cylMesh = osim.PolygonalMesh().createCylinderMesh(osim.UnitVec3(0., 1., 0.), .005, 0.5)
         cylMesh.transformMesh(osim.Transform(osim.Vec3(0., 0.5, 0.0)))
         mesh = self.addGltfMeshForPolygonalMesh(cylMesh, self.currentPathMaterial) # populate from polyDataOutput
