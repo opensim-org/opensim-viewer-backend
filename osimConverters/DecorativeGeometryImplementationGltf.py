@@ -155,7 +155,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
     def implementCylinderGeometry(self, arg0):
         cylData = vtk.vtkCylinderSource()
         cylData.SetRadius(arg0.getRadius()*self.unitConversion)
-        cylData.SetHeight(arg0.getHalfHeight()*self.unitConversion)
+        cylData.SetHeight(arg0.getHalfHeight()*2*self.unitConversion)
         cylData.Update()
         polyDataOutput = cylData.GetOutput();
         self.createGLTFNodeAndMeshFromPolyData(arg0, "Cylinder:", polyDataOutput, self.getMaterialIndexByType())
