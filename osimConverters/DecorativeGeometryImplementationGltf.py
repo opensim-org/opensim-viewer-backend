@@ -611,12 +611,14 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         self.bufferViews.append(bufferView);
 
     def createGLTFLineStrip(self, point0, point1):
-        cylSource = vtk.vtkCylinderSource()
-        cylSource.SetRadius(0.005)
-        cylSource.SetCenter(0., 0.5, 0.)
-        cylSource.Update()
-        polyDataOutput = cylSource.GetOutput()
-        mesh = self.addMeshForPolyData(polyDataOutput, self.currentPathMaterial) # populate from polyDataOutput
+        # cylSource = vtk.vtkCylinderSource()
+        # cylSource.SetRadius(0.005)
+        # cylSource.SetCenter(0., 0.5, 0.)
+        # cylSource.Update()
+        # polyDataOutput = cylSource.GetOutput()
+        cylMesh = osim.PolygonalMesh().createCylinderMesh(osim.UnitVec3(0., 1., 0.), .005, 0.5)
+        cylMesh.transformMesh(osim.Transform(osim.Vec3(0., 0.5, 0.0)))
+        mesh = self.addGltfMeshForPolygonalMesh(cylMesh, self.currentPathMaterial) # populate from polyDataOutput
         return mesh;
 
     def createGLTFObjectsForGeometryPath(self, geometryPath):
