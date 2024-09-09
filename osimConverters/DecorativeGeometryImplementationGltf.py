@@ -22,6 +22,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         self.mapPathsToNodeIds = {}
         self.mapPathsToNodeTypes = {}
         self.mapPathsToWrapStatus = {}
+        self.mapPathsToColorNodes = {}
 
         self.useTRS = False  # indicate whether transforms should be written as trs or as a matrix
         self.computeTRSOnly = False # indicate whether nodes need to be generated (or we're computing TRS only)
@@ -515,19 +516,19 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         Args:
             geometryPath (_type_): _description_
         """
-        if geometryPath not in self.mapPathToMaterialIndex:
-            color = geometryPath.getColor(self.modelState)
+        gPath = osim.GeometryPath.safeDownCast(geometryPath)
+        if gPath not in self.mapPathToMaterialIndex:
+            color = gPath.getColor(self.modelState)
             color_np = []
             for index in range(3):
                 color_np.append(color.get(index))
             color_np.append(1.0)
             pathMaterialIndex = self.addMaterialToGltf(geometryPath.getAbsolutePathString()+str("Mat"), color_np, 0.5)
-            self.mapPathToMaterialIndex[geometryPath] = pathMaterialIndex
+            self.mapPathToMaterialIndex[gPath] = pathMaterialIndex
             self.currentPathMaterial = pathMaterialIndex
 
         self.useTRS = True #intended so that objects created here can be animated later
         self.processingPath = True
-        gPath = osim.GeometryPath.safeDownCast(geometryPath)
         # inspect path to figure out how many gltf nodes will be needed to display
         # pathpoints/wrappoints and line-segments
         # The code below will populate the ids for the corresponding nodes, with extra
@@ -597,6 +598,8 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         pathsegment_translation_map = {}
         pathsegment_rotation_map = {}
         pathsegment_scale_map = {}
+
+        path_color_map = {}
         # Create blank arrays to be populated from motion, these are either translations or (TRS)
         bodySet = self.model.getBodySet()
         numTimes = times.getSize()
@@ -622,6 +625,9 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
                     segment_scale_array = np.zeros((numTimes, 3), dtype="float32")
                     pathsegment_scale_map[node_type_n_index[0]] = segment_scale_array
 
+            # for every path we need a translation array that will contain the pathColor during animation
+            path_color_array = np.zeros((numTimes, 3), dtype="float32")
+            path_color_map[nextPath] = path_color_array
 
         for step in range(stateTraj.getSize()):
             # print("step:", step)
@@ -645,6 +651,10 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
                 # print(nextPath.getAbsolutePathString())
                 adg = osim.ArrayDecorativeGeometry()
                 self.customPathGenerateDecorations(nextPath, nextState, adg)
+                pathColor = nextPath.getColor(nextState)
+                # print("Step", step, "Color", pathColor.to_numpy())
+                for idx in range(3):
+                    path_color_map[nextPath][step, idx] = pathColor[idx]
                 # nextPath.generateDecorations(False, self.displayHints, nextState, adg)
                 pathNodes = self.mapPathsToNodeIds[nextPath]
                 for pathNodeIndex in range(adg.size()):
@@ -737,6 +747,8 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
                     self.createPathSampler(pathsegment_translation_map, node_type_n_index, animation, timeAccessorIndex, 't')
                     self.createPathSampler(pathsegment_rotation_map, node_type_n_index, animation, timeAccessorIndex, 'r')
                     self.createPathSampler(pathsegment_scale_map, node_type_n_index, animation, timeAccessorIndex, 's')
+            # create samplers for the color nodes
+            self.createPathColorSampler(path_color_map[nextPath], self.mapPathsToColorNodes[nextPath], animation, timeAccessorIndex)
 
         # Add builtin cameras (disabled for CMBBE)
         # # first create nodes for the cameras, then accessors that will be used to position/orient them
@@ -774,6 +786,27 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
     
         transChannel.target = ttarget
         transChannel.sampler = transSamplerIndex
+
+    def createPathColorSampler(self, color_data_nparray, color_node_id, animation, timeAccessorIndex):
+        transSamplerIndex = len(animation.samplers)
+        transSampler = AnimationSampler()
+        transSampler.input = timeAccessorIndex
+        transSampler.output = createAccessor(self.gltf, color_data_nparray, 't')
+        # if (trs == 'r'):
+        #     transSampler.interpolation = ANIM_STEP
+        animation.samplers.append(transSampler)
+                    # Create channels
+        transChannelIndex = len(animation.channels)
+                    # nextChannelNumber for rotations, nextChannelNumber+1 for translations
+        transChannel = AnimationChannel()
+        animation.channels.append(transChannel) 
+        ttarget = AnimationChannelTarget()
+        ttarget.node = color_node_id
+        ttarget.path = "translation"
+    
+        transChannel.target = ttarget
+        transChannel.sampler = transSamplerIndex
+
 
     def createCameraSamplersAndTargets(self, cameraNodes, animation, cameraTimeAccessorIndex):
         cameraRotation_bbox_arrays = [[0., 0., 0., 1.0], [0., 0., 0.,1.0], 
@@ -981,6 +1014,35 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
 
                 segmentStartIndex = segmentEndIndex
 
+    def createColorNodesForPaths(self):
+        for nextPath in self.mapPathToMaterialIndex.keys():
+            print(nextPath.getOwner().getName())
+            materialId = self.mapPathToMaterialIndex[nextPath]
+            createColorNode = self.createGLTFColorNode(materialId)
+            self.mapPathsToColorNodes[nextPath] = createColorNode
 
+
+    def createGLTFColorNode(self, materialId):
+        brickData = vtk.vtkCubeSource()
+        brickData.SetXLength(.01)
+        brickData.SetYLength(.01)
+        brickData.SetZLength(.01)
+        brickData.Update()
+        polyDataOutput = brickData.GetOutput();
+        mesh = self.addMeshForPolyData(polyDataOutput, materialId) # populate from polyDataOutput
+        self.meshes.append(mesh)
+        meshId = len(self.meshes)-1
+
+        colorNodeName="ColorNode"+str(len(self.mapPathsToColorNodes))+""
+        meshNode = Node(name=colorNodeName)
+        meshNode.translation = [0, 0, 0]
+        meshNode.scale = [0, 1, 0]
+        meshNode.rotation = [0, 0, 0, 1]
+
+        meshNode.mesh = meshId;
+        nodeIndex = len(self.nodes)
+        self.nodes.append(meshNode)
+        self.mapMobilizedBodyIndexToNodes[0].children.append(nodeIndex)
+        return nodeIndex
 
 
