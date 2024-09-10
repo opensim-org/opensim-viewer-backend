@@ -41,7 +41,6 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         self.nodes = None
         self.meshes = None
         self.animations = None
-        self.pathPointMeshId = None
 
     def setUnitConversion(self, unitConversion):
         self.unitConversion = unitConversion
@@ -167,18 +166,13 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         return _simbody.DecorativeGeometryImplementation_implementCircleGeometry(self, arg0)
 
     def implementSphereGeometry(self, arg0):
-        if (not self.processingPath or self.pathPointMeshId==None):
-            sphereSource = vtk.vtkSphereSource()
-            sphereSource.SetRadius(arg0.getRadius()*self.unitConversion)
-            sphereSource.SetPhiResolution(16)
-            sphereSource.SetThetaResolution(16)
-            sphereSource.Update()
-            polyDataOutput = sphereSource.GetOutput()
-            self.createGLTFNodeAndMeshFromPolyData(arg0, "Sphere:", polyDataOutput, self.getMaterialIndexByType())
-            if (self.processingPath): # First pathpoint ever created, cache the id for reuse
-                self.pathPointMeshId = len(self.meshes)-1
-        else: # Here processingPath and meshId was already cached
-            self.createGLTFNodeAndMeshFromPolyData(arg0, "Sphere:", None, self.getMaterialIndexByType(), self.pathPointMeshId)
+        sphereSource = vtk.vtkSphereSource()
+        sphereSource.SetRadius(arg0.getRadius()*self.unitConversion)
+        sphereSource.SetPhiResolution(16)
+        sphereSource.SetThetaResolution(16)
+        sphereSource.Update()
+        polyDataOutput = sphereSource.GetOutput()
+        self.createGLTFNodeAndMeshFromPolyData(arg0, "Sphere:", polyDataOutput, self.getMaterialIndexByType())
 
     def implementEllipsoidGeometry(self, arg0):
         sphereSource = vtk.vtkSphereSource()
@@ -632,7 +626,8 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         for step in range(stateTraj.getSize()):
             # print("step:", step)
             nextState = stateTraj.get(step)
-            self.model.realizePosition(nextState)
+            #self.model.realizePosition(nextState)
+            self.model.realizeDynamics(nextState)
             for bodyIndex in range(bodySet.getSize()):
                 nextBody = bodySet.get(bodyIndex)
                 translation = nextBody.getPositionInGround(nextState).to_numpy()
