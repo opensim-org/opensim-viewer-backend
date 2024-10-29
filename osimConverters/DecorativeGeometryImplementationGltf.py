@@ -445,6 +445,18 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         self.accessors.append(normalsAccessor)
         normalsAccessorIndex = len(self.accessors)-1
 
+        # texture coordinates
+        tcoordsData = triPolys.GetPointData().GetTCoords()
+        self.writeBufferAndView(tcoordsData, ARRAY_BUFFER)
+        tcoordAccessor = Accessor()
+        tcoordAccessor.bufferView= len(self.bufferViews)-1
+        tcoordAccessor.byteOffset = 0
+        tcoordAccessor.type = VEC2
+        tcoordAccessor.componentType = FLOAT
+        tcoordAccessor.count = tcoordsData.GetNumberOfTuples()
+        self.accessors.append(tcoordAccessor)
+        tCoordsAccessorIndex = len(self.accessors)-1
+
         # now vertices
         primitive = Primitive()
         primitive.mode = 4
@@ -472,6 +484,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         self.accessors.append(indexAccessor);
         primitive.attributes.POSITION= pointAccessorIndex
         primitive.attributes.NORMAL = normalsAccessorIndex
+        primitive.attributes.TEXCOORD_0= tCoordsAccessorIndex
         newMesh = Mesh()
         newMesh.primitives.append(primitive)
         return newMesh;
