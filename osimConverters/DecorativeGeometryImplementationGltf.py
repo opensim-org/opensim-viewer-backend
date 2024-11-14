@@ -14,6 +14,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         self.unitConversion = 1.0    #1.0 if model is in meters, else set to conversionToMeters factor
         self.gltf = None             # resulting  GLTF object used to accumulate nodes, meshes, cameras etc.
         self.currentComponent = None # Keep track of which OpenSim::Component being processed so correct annotation is associated
+        self.currentTexture = ''
         self.mapMobilizedBodyIndexToNodes = {}
         self.mapMobilizedBodyIndexToNodeIndex = {}
         self.processingPath = False
@@ -60,6 +61,9 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         is agnostic to what component it's handling except for the case where multiple calls 
         are needed to render one component as is the case with a muscle/path """
         self.currentComponent = component
+
+    def setCurrentTexture(self, newTexture):
+        self.currentTexture = newTexture
 
     def setDecorativeGeometryIndex(self, index):
         self.dg_index = index
@@ -330,7 +334,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
 
     def addDefaultMaterials(self):
         # create the following materials:
-        # 0. default bone material for meshes
+        # 0. default gray material for meshes
         # 1 shiny cyan material for wrap objects and contact surfaces
         # 2 shiny pink material for model markers
         # 3 shiny green material for forces
@@ -343,19 +347,23 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         self.MaterialGrouping["WrapCylinder"] = "Wrapping"
         self.MaterialGrouping["WrapEllipsoid"] = "Wrapping"
         self.MaterialGrouping["WrapTorus"] = "Wrapping"
-        self.mapTypesToMaterialIndex["Mesh"] = self.addMaterialToGltf("default", [.93, .84, .77, 1.0], 0.5)
+        self.mapTypesToMaterialIndex["Mesh"] = self.addMaterialToGltf("default", [0.8, 0.8, 0.8, 1.0], 0.5)
         self.mapTypesToMaterialIndex["Wrapping"] = self.addMaterialToGltf("obstacle", [0, .9, .9, 0.7], 1.0)
         self.mapTypesToMaterialIndex["Marker"] = self.addMaterialToGltf("markerMat", [1.0, .6, .8, 1.0], 1.0)
         self.mapTypesToMaterialIndex["Force"] = self.addMaterialToGltf("forceMat", [0, .9, 0, 0.7], .9)
         self.mapTypesToMaterialIndex["ExpMarker"] = self.addMaterialToGltf("expMarkerMat", [0, 0, 0.9, 1.0], 0.9)
         self.mapTypesToMaterialIndex["IMU"] = self.addMaterialToGltf("imuMat", [.8, .8, .8, 1.0], 1.0)
-        
+        self.mapTypesToMaterialIndex["Mesh.Metal"] = self.addMaterialToGltf("metal", [.9, 0.9, 0.9, 1.0], 1.0, 'Metal')
+        self.mapTypesToMaterialIndex["Mesh.Bone"] = self.addMaterialToGltf("bone", [.93, .84, .77, 1.0], 0.5, 'Bone')
 
-    def addMaterialToGltf(self, matName, color4, metallicFactor):
+    def addMaterialToGltf(self, matName, color4, metallicFactor, texture=None):
         newMaterial = Material()
         newMaterial.name = matName
+        newMaterial.doubleSided=True
+        # if (texture!= None):
+        #     newMaterial.normalTexture=0
         pbr = PbrMetallicRoughness()  # Use PbrMetallicRoughness
-        pbr.baseColorFactor =  color4 # solid red
+        pbr.baseColorFactor =  color4 
         pbr.metallicFactor = metallicFactor
         newMaterial.pbrMetallicRoughness = pbr
         self.materials.append(newMaterial)
@@ -365,14 +373,20 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         componentType = self.currentComponent.getConcreteClassName()
         materialGrouping = self.MaterialGrouping.get(componentType)
         if (materialGrouping is not None):
-            mat = self.mapTypesToMaterialIndex.get(materialGrouping)
+            mat = self.mapTypesToMaterialIndex.get(materialGrouping);
         else:
-            mat = self.mapTypesToMaterialIndex.get(componentType)
+            mat = self.getMeshMaterialId(componentType)
         if (mat is not None):
             return mat
         else:
             return 1
  
+    def getMeshMaterialId(self, compType):
+        if (self.currentTexture != None and self.currentTexture != ''):
+                return self.mapTypesToMaterialIndex.get(compType+'.'+self.currentTexture)
+        return  self.mapTypesToMaterialIndex.get(compType)
+    
+
     def setNodeTransformFromDecoration(self, node: Node, mesh: Mesh, decorativeGeometry: osim.DecorativeGeometry):
         bd = decorativeGeometry.getBodyId()
         bdNode = self.mapMobilizedBodyIndexToNodes[bd]
@@ -447,15 +461,16 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
 
         # texture coordinates
         tcoordsData = triPolys.GetPointData().GetTCoords()
-        self.writeBufferAndView(tcoordsData, ARRAY_BUFFER)
-        tcoordAccessor = Accessor()
-        tcoordAccessor.bufferView= len(self.bufferViews)-1
-        tcoordAccessor.byteOffset = 0
-        tcoordAccessor.type = VEC2
-        tcoordAccessor.componentType = FLOAT
-        tcoordAccessor.count = tcoordsData.GetNumberOfTuples()
-        self.accessors.append(tcoordAccessor)
-        tCoordsAccessorIndex = len(self.accessors)-1
+        if (tcoordsData != None):
+            self.writeBufferAndView(tcoordsData, ARRAY_BUFFER)
+            tcoordAccessor = Accessor()
+            tcoordAccessor.bufferView= len(self.bufferViews)-1
+            tcoordAccessor.byteOffset = 0
+            tcoordAccessor.type = VEC2
+            tcoordAccessor.componentType = FLOAT
+            tcoordAccessor.count = tcoordsData.GetNumberOfTuples()
+            self.accessors.append(tcoordAccessor)
+            tCoordsAccessorIndex = len(self.accessors)-1
 
         # now vertices
         primitive = Primitive()
@@ -484,7 +499,8 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         self.accessors.append(indexAccessor);
         primitive.attributes.POSITION= pointAccessorIndex
         primitive.attributes.NORMAL = normalsAccessorIndex
-        primitive.attributes.TEXCOORD_0= tCoordsAccessorIndex
+        if (tcoordsData != None):
+            primitive.attributes.TEXCOORD_0= tCoordsAccessorIndex
         newMesh = Mesh()
         newMesh.primitives.append(primitive)
         return newMesh;

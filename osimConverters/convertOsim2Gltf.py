@@ -61,10 +61,14 @@ def convertOsim2Gltf(osimModelFilePath, geometrySearchPath, motionPaths=[], opti
           # setCurrentComponent and call setDecorativeGeometryIndex so that geometry has unique 
           # name/ID/context and can share common material
           decorativeGeometryImp.setCurrentComponent(comp)
+          if (comp.getConcreteClassName()=="Mesh"):
+             mesh = osim.Mesh.safeDownCast(comp)
+             texture = 'Bone' # mesh.get_Appearance().get_SurfaceProperties().get_texture();
+             decorativeGeometryImp.setCurrentTexture(texture)
           for dg_index  in range(sizeBefore, sizeAfter):
               decorativeGeometryImp.setDecorativeGeometryIndex(dg_index)
               adg.at(dg_index).implementGeometry(decorativeGeometryImp)
-
+          decorativeGeometryImp.setCurrentTexture('')
 
   for motIndex in range(len(motionPaths)):
     fileExists = Path(motionPaths[motIndex]).exists()
