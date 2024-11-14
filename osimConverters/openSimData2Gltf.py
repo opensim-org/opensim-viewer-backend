@@ -39,6 +39,9 @@ def initGltf():
     # clear children of scene
     sceneNodes = default_scene.nodes
     sceneNodes.clear()
+    # images for texture
+    gltf.samplers.append(Sampler(wrapS=10497, wrapT=10497, magFilter=9729, minFilter=9987))
+    gltf.textures.append(Texture(source=0, sampler=0))
     return gltf
 
 def createForceDictionary(labels, forcesDictionary):
