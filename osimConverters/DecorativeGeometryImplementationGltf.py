@@ -1,7 +1,6 @@
 import opensim as osim
 from pygltflib import *
 import numpy as np
-import vtk
 from .openSimData2Gltf import *
 
 # Class to convert osim model file to a GLTF structure.
@@ -411,76 +410,76 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
             retTransform[12+i] = p.get(i)*self.unitConversion;
         return retTransform
 
-    def addMeshForPolyData(self, polyData: vtk.vtkPolyData, mat: int):
-        tris = vtk.vtkTriangleFilter()
-        tris.SetInputData(polyData);
-        tris.Update()
-        triPolys = tris.GetOutput()
+    # def addMeshForPolyData(self, polyData: vtk.vtkPolyData, mat: int):
+    #     tris = vtk.vtkTriangleFilter()
+    #     tris.SetInputData(polyData);
+    #     tris.Update()
+    #     triPolys = tris.GetOutput()
 
-        # This follows vtkGLTFExporter flow
-        pointData = triPolys.GetPoints().GetData();
-        self.writeBufferAndView(pointData, ARRAY_BUFFER)
-        bounds = triPolys.GetPoints().GetBounds()
-        # create accessor
-        pointAccessor = Accessor()
-        pointAccessor.bufferView= len(self.bufferViews)-1
-        pointAccessor.byteOffset = 0
-        pointAccessor.type = VEC3
-        pointAccessor.componentType = FLOAT
-        pointAccessor.count = pointData.GetNumberOfTuples()
-        maxValue = [bounds[1], bounds[3], bounds[5]]
-        minValue = [bounds[0], bounds[2], bounds[4]]
-        pointAccessor.min = minValue
-        pointAccessor.max = maxValue
-        self.accessors.append(pointAccessor)
-        pointAccessorIndex = len(self.accessors)-1
+    #     # This follows vtkGLTFExporter flow
+    #     pointData = triPolys.GetPoints().GetData();
+    #     self.writeBufferAndView(pointData, ARRAY_BUFFER)
+    #     bounds = triPolys.GetPoints().GetBounds()
+    #     # create accessor
+    #     pointAccessor = Accessor()
+    #     pointAccessor.bufferView= len(self.bufferViews)-1
+    #     pointAccessor.byteOffset = 0
+    #     pointAccessor.type = VEC3
+    #     pointAccessor.componentType = FLOAT
+    #     pointAccessor.count = pointData.GetNumberOfTuples()
+    #     maxValue = [bounds[1], bounds[3], bounds[5]]
+    #     minValue = [bounds[0], bounds[2], bounds[4]]
+    #     pointAccessor.min = minValue
+    #     pointAccessor.max = maxValue
+    #     self.accessors.append(pointAccessor)
+    #     pointAccessorIndex = len(self.accessors)-1
 
-        # Now the normals
-        normalsFilter = vtk.vtkPolyDataNormals();
-        normalsFilter.SetInputData(triPolys)
-        normalsFilter.ComputePointNormalsOn()
-        normalsFilter.Update()
-        normalsData = normalsFilter.GetOutput().GetPointData().GetNormals();
-        self.writeBufferAndView(normalsData, ARRAY_BUFFER)
-        normalsAccessor = Accessor()
-        normalsAccessor.bufferView= len(self.bufferViews)-1
-        normalsAccessor.byteOffset = 0
-        normalsAccessor.type = VEC3
-        normalsAccessor.componentType = FLOAT
-        normalsAccessor.count = pointData.GetNumberOfTuples()
-        self.accessors.append(normalsAccessor)
-        normalsAccessorIndex = len(self.accessors)-1
+    #     # Now the normals
+    #     normalsFilter = vtk.vtkPolyDataNormals();
+    #     normalsFilter.SetInputData(triPolys)
+    #     normalsFilter.ComputePointNormalsOn()
+    #     normalsFilter.Update()
+    #     normalsData = normalsFilter.GetOutput().GetPointData().GetNormals();
+    #     self.writeBufferAndView(normalsData, ARRAY_BUFFER)
+    #     normalsAccessor = Accessor()
+    #     normalsAccessor.bufferView= len(self.bufferViews)-1
+    #     normalsAccessor.byteOffset = 0
+    #     normalsAccessor.type = VEC3
+    #     normalsAccessor.componentType = FLOAT
+    #     normalsAccessor.count = pointData.GetNumberOfTuples()
+    #     self.accessors.append(normalsAccessor)
+    #     normalsAccessorIndex = len(self.accessors)-1
 
-        # now vertices
-        primitive = Primitive()
-        primitive.mode = 4
-        if (self.processingPath):
-            primitive.material = self.currentPathMaterial
-        else:
-            primitive.material = mat
-        meshPolys = triPolys.GetPolys()
-        ia = vtk.vtkUnsignedIntArray()
-        idList = vtk.vtkIdList()
-        while meshPolys.GetNextCell(idList):
-            # do something with the cell
-            for i in range(idList.GetNumberOfIds()):
-                pointId = idList.GetId(i)
-                ia.InsertNextValue(pointId)
-        self.writeBufferAndView(ia, ELEMENT_ARRAY_BUFFER)
+    #     # now vertices
+    #     primitive = Primitive()
+    #     primitive.mode = 4
+    #     if (self.processingPath):
+    #         primitive.material = self.currentPathMaterial
+    #     else:
+    #         primitive.material = mat
+    #     meshPolys = triPolys.GetPolys()
+    #     ia = vtk.vtkUnsignedIntArray()
+    #     idList = vtk.vtkIdList()
+    #     while meshPolys.GetNextCell(idList):
+    #         # do something with the cell
+    #         for i in range(idList.GetNumberOfIds()):
+    #             pointId = idList.GetId(i)
+    #             ia.InsertNextValue(pointId)
+    #     self.writeBufferAndView(ia, ELEMENT_ARRAY_BUFFER)
 
-        indexAccessor = Accessor()
-        indexAccessor.bufferView = len(self.bufferViews) - 1;
-        indexAccessor.byteOffset = 0
-        indexAccessor.type = SCALAR
-        indexAccessor.componentType = UNSIGNED_INT
-        indexAccessor.count =  meshPolys.GetNumberOfCells() * 3;
-        primitive.indices = len(self.accessors)
-        self.accessors.append(indexAccessor);
-        primitive.attributes.POSITION= pointAccessorIndex
-        primitive.attributes.NORMAL = normalsAccessorIndex
-        newMesh = Mesh()
-        newMesh.primitives.append(primitive)
-        return newMesh;
+    #     indexAccessor = Accessor()
+    #     indexAccessor.bufferView = len(self.bufferViews) - 1;
+    #     indexAccessor.byteOffset = 0
+    #     indexAccessor.type = SCALAR
+    #     indexAccessor.componentType = UNSIGNED_INT
+    #     indexAccessor.count =  meshPolys.GetNumberOfCells() * 3;
+    #     primitive.indices = len(self.accessors)
+    #     self.accessors.append(indexAccessor);
+    #     primitive.attributes.POSITION= pointAccessorIndex
+    #     primitive.attributes.NORMAL = normalsAccessorIndex
+    #     newMesh = Mesh()
+    #     newMesh.primitives.append(primitive)
+    #     return newMesh;
 
     def addGltfMeshForPolygonalMesh(self, polyMesh: osim.PolygonalMesh, mat: int):
         """_summary_
@@ -532,8 +531,10 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         pointAccessor.componentType = FLOAT
         pointAccessor.count = numVerts
 
-        # pointAccessor.min.append([min_pt[0], min_pt[1], min_pt[2]])
-        # pointAccessor.max.append([max_pt[0], max_pt[1], max_pt[2]])
+        min_pt = npArray_points.min(axis=0)
+        max_pt = npArray_points.max(axis=0)
+        pointAccessor.min = [float(min_pt[0]), float(min_pt[1]), float(min_pt[2])]
+        pointAccessor.max = [float(max_pt[0]), float(max_pt[1]), float(max_pt[2])]
         self.accessors.append(pointAccessor)
         pointAccessorIndex = len(self.accessors)-1
 
@@ -589,25 +590,25 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         newMesh.primitives.append(primitive)
         return newMesh;
 
-    def writeBufferAndView(self, inData: vtk.vtkDataArray, bufferViewTarget: int):
-        nt = inData.GetNumberOfTuples()
-        nc = inData.GetNumberOfComponents()
-        ne = inData.GetElementComponentSize()
-        npArray_points = np.array(inData)
-        count = nt * nc;
-        byteLength = ne * count;
-        encoded_result = base64.b64encode(npArray_points).decode("ascii")
-        buffer = Buffer()
-        buffer.byteLength = byteLength;
-        buffer.uri = f"data:application/octet-stream;base64,{encoded_result}";
-        self.buffers.append(buffer);
+    # def writeBufferAndView(self, inData: vtk.vtkDataArray, bufferViewTarget: int):
+    #     nt = inData.GetNumberOfTuples()
+    #     nc = inData.GetNumberOfComponents()
+    #     ne = inData.GetElementComponentSize()
+    #     npArray_points = np.array(inData)
+    #     count = nt * nc;
+    #     byteLength = ne * count;
+    #     encoded_result = base64.b64encode(npArray_points).decode("ascii")
+    #     buffer = Buffer()
+    #     buffer.byteLength = byteLength;
+    #     buffer.uri = f"data:application/octet-stream;base64,{encoded_result}";
+    #     self.buffers.append(buffer);
     
-        bufferView = BufferView()
-        bufferView.buffer = len(self.buffers)-1
-        bufferView.byteOffset = 0
-        bufferView.byteLength = byteLength
-        bufferView.target = bufferViewTarget
-        self.bufferViews.append(bufferView);
+    #     bufferView = BufferView()
+    #     bufferView.buffer = len(self.buffers)-1
+    #     bufferView.byteOffset = 0
+    #     bufferView.byteLength = byteLength
+    #     bufferView.target = bufferViewTarget
+    #     self.bufferViews.append(bufferView);
 
     def createGLTFLineStrip(self, point0, point1):
         cylMesh = osim.PolygonalMesh().createCylinderMesh(osim.UnitVec3(0., 1., 0.), .005, 0.5)
