@@ -359,6 +359,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
     def addMaterialToGltf(self, matName, color4, metallicFactor):
         newMaterial = Material()
         newMaterial.name = matName
+        newMaterial.alphaCutoff = ""
         pbr = PbrMetallicRoughness()  # Use PbrMetallicRoughness
         pbr.baseColorFactor =  color4 # solid red
         pbr.metallicFactor = metallicFactor
