@@ -364,6 +364,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         pbr.baseColorFactor =  color4 # solid red
         pbr.metallicFactor = metallicFactor
         newMaterial.pbrMetallicRoughness = pbr
+        newMaterial.doubleSided = True
         self.materials.append(newMaterial)
         return len(self.materials)-1
 
