@@ -962,7 +962,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         Args:
             geometryPath (_type_): _description_
         """
-        numSegments = geometryPath.getPathPointSet().getSize()-1
+        numSegments = geometryPath.getPathPointSet().getSize()-1 #segments not accounting for wrapping
         numWrapObjects = geometryPath.getWrapSet().getSize()
         expectedTypes = []
         expectedTypes.append(0) # Start with path point
@@ -1064,12 +1064,19 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
                 # if numActualWraps < expectedSegments[segmentNumber] pad
                 toPad = len(expectedSegments[segmentNumber]) - numActualWraps
                 # print ("num actual wraps=", numActualWraps)
+                nextPointPos = pathPoints.get(segmentEndIndex).getLocationInGround(state)
+                # for line segments that are collapsed and are side-effects of disengaged wrapping
+                # we make sure these have transforms aligned with the segment so that when interpolating
+                # between frames, no stray line segments appear. For each such segment we produce
+                # an intermediate along the line to compute the transform
+                delta = 0.01
                 for pad in range(toPad * 4):
+                    intermediate = (1-delta*(pad+1)) * lastPos.to_numpy() + delta*(pad+1) * nextPointPos.to_numpy()
                     posTransform = osim.Transform().setP(lastPos)
                     decoSphere = osim.DecorativeSphere(0.005)
                     decoSphere.setColor(color).setBodyId(0).setTransform(posTransform)
                     arrayDecorativeGeometry.push_back(decoSphere)
-                    decoLine = osim.DecorativeLine(lastPos, lastPos)
+                    decoLine = osim.DecorativeLine(lastPos, osim.Vec3(intermediate))
                     decoLine.setColor(color).setBodyId(0)
                     arrayDecorativeGeometry.push_back(decoLine)
                 
