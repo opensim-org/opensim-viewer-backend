@@ -17,6 +17,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         self.mapMobilizedBodyIndexToNodeIndex = {}
         self.processingPath = False
         self.currentPathMaterial = None
+        self.currentTexture = 'default'
         self.mapPathToMaterialIndex = {}
         self.mapPathsToNodeIds = {}
         self.mapPathsToNodeTypes = {}
@@ -198,6 +199,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
             arg0.getMeshFile().casefold().endswith(".obj")):
                 polygonalMesh = osim.PolygonalMesh()
                 polygonalMesh.loadFile(arg0.getMeshFile())
+                print("Loading file", arg0.getMeshFile())
                 self.createGLTFNodeAndMeshFromPolygonalMesh(arg0, "Mesh"+arg0.getMeshFile(), polygonalMesh, self.getMaterialIndexByType())
         else:
             raise ValueError("Unsupported file extension")
@@ -348,23 +350,27 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         self.MaterialGrouping["WrapCylinder"] = "Wrapping"
         self.MaterialGrouping["WrapEllipsoid"] = "Wrapping"
         self.MaterialGrouping["WrapTorus"] = "Wrapping"
-        self.mapTypesToMaterialIndex["Mesh"] = self.addMaterialToGltf("default", [.93, .84, .77, 1.0], 0.5)
+        self.mapTypesToMaterialIndex["Mesh"] = self.addMaterialToGltf("default", [0.8, 0.8, 0.8, 1.0], 0.5)
         self.mapTypesToMaterialIndex["Wrapping"] = self.addMaterialToGltf("obstacle", [0, .9, .9, 0.7], 1.0)
         self.mapTypesToMaterialIndex["Marker"] = self.addMaterialToGltf("markerMat", [1.0, .6, .8, 1.0], 1.0)
         self.mapTypesToMaterialIndex["Force"] = self.addMaterialToGltf("forceMat", [0, .9, 0, 0.7], .9)
         self.mapTypesToMaterialIndex["ExpMarker"] = self.addMaterialToGltf("expMarkerMat", [0, 0, 0.9, 1.0], 0.9)
         self.mapTypesToMaterialIndex["IMU"] = self.addMaterialToGltf("imuMat", [.8, .8, .8, 1.0], 1.0)
+        self.mapTypesToMaterialIndex["Mesh.Metal"] = self.addMaterialToGltf("metal", [.9, 0.9, 0.9, 1.0], 1.0, 'Metal')
+        self.mapTypesToMaterialIndex["Mesh.Bone"] = self.addMaterialToGltf("bone", [.93, .84, .77, 1.0], 0.5, 'Bone')
         
 
-    def addMaterialToGltf(self, matName, color4, metallicFactor):
+    def addMaterialToGltf(self, matName, color4, metallicFactor, texture=None):
         newMaterial = Material()
         newMaterial.name = matName
         newMaterial.alphaCutoff = ""
         pbr = PbrMetallicRoughness()  # Use PbrMetallicRoughness
-        pbr.baseColorFactor =  color4 # solid red
+        pbr.baseColorFactor =  color4
         pbr.metallicFactor = metallicFactor
         newMaterial.pbrMetallicRoughness = pbr
         newMaterial.doubleSided = True
+        # if (texture!= None):
+        #     newMaterial.normalTexture=0
         self.materials.append(newMaterial)
         return len(self.materials)-1
 
@@ -374,12 +380,18 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         if (materialGrouping is not None):
             mat = self.mapTypesToMaterialIndex.get(materialGrouping)
         else:
-            mat = self.mapTypesToMaterialIndex.get(componentType)
+            mat = self.getMeshMaterialId(componentType)
         if (mat is not None):
             return mat
         else:
             return 1
  
+    def getMeshMaterialId(self, compType):
+        if (self.currentTexture != None and self.currentTexture != ''):
+                return self.mapTypesToMaterialIndex.get(compType+'.'+self.currentTexture)
+        return  self.mapTypesToMaterialIndex.get(compType)
+
+
     def setNodeTransformFromDecoration(self, node: Node, mesh: Mesh, decorativeGeometry: osim.DecorativeGeometry):
         bd = decorativeGeometry.getBodyId()
         bdNode = self.mapMobilizedBodyIndexToNodes[bd]
@@ -498,14 +510,27 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         for v in range(numVerts):
             npArray_points[v] = polyMesh.getVertexPosition(v).to_numpy()
 
-        # convert arbitrary side faces into triangles as supported by gltf format
+        # convert arbitrary n-sided faces into triangles as supported by gltf format
         numFaces = polyMesh.getNumFaces()
         trisList = []
+        faceVertList = []
+        hasNormalsAtFaceVertex = polyMesh.hasNormalsAtFaces()
+        hastextureAtFaceVertex = polyMesh.hasTextureCoordinatesAtFaces()
+        normalsAccessorIndex = None
+        textureAccessorIndex = None
+
         for f in range(numFaces):
             nv = polyMesh.getNumVerticesForFace(f)
             vertexIdList = []
             for i in range(nv):
-                vertexIdList.append(polyMesh.getFaceVertex(f, i))
+                vIndex = polyMesh.getFaceVertex(f, i)
+                faceVertList.append([f, i])
+                vertexIdList.append(vIndex)
+                # if hastextureAtFaceVertex:
+                #     uvAsVec2 = polyMesh.getVertexTextureCoordinate(f, i)
+                #     npArray_tcoords[vIndex] = np.array([uvAsVec2.get(0), uvAsVec2.get(1)])
+                # if hasNormalsAtFaceVertex:
+                #     npArray_normals[vIndex] = polyMesh.getVertexNormal(f, i).to_numpy()
             # Group indices into triangles
             trisList.append(vertexIdList[:3])
             for tri in range(3, len(vertexIdList)):
@@ -541,20 +566,62 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         pointAccessorIndex = len(self.accessors)-1
 
         # Now the normals
-        # normalsFilter = vtk.vtkPolyDataNormals();
-        # normalsFilter.SetInputData(triPolys)
-        # normalsFilter.ComputePointNormalsOn()
-        # normalsFilter.Update()
-        # normalsData = normalsFilter.GetOutput().GetPointData().GetNormals();
-        # self.writeBufferAndView(normalsData, ARRAY_BUFFER)
-        # normalsAccessor = Accessor()
-        # normalsAccessor.bufferView= len(self.bufferViews)-1
-        # normalsAccessor.byteOffset = 0
-        # normalsAccessor.type = VEC3
-        # normalsAccessor.componentType = FLOAT
-        # normalsAccessor.count = pointData.GetNumberOfTuples()
-        # self.accessors.append(normalsAccessor)
-        # normalsAccessorIndex = len(self.accessors)-1
+        if (hasNormalsAtFaceVertex):
+            byteLength = len(faceVertList)*3*4;
+            npArray_normals = np.zeros((len(faceVertList), 3), dtype="float32")
+            for faceVert in range(len(faceVertList)):
+                faceVertIndex = faceVertList[faceVert]
+                npArray_normals[faceVert] = polyMesh.getVertexNormal(faceVertIndex[0], faceVertIndex[1]).to_numpy()
+
+            encoded_result = base64.b64encode(npArray_normals).decode("ascii")
+            buffer = Buffer()
+            buffer.byteLength = byteLength;
+            buffer.uri = f"data:application/octet-stream;base64,{encoded_result}";
+            self.buffers.append(buffer);
+        
+            bufferView = BufferView()
+            bufferView.buffer = len(self.buffers)-1
+            bufferView.byteOffset = 0
+            bufferView.byteLength = byteLength
+            bufferView.target = ARRAY_BUFFER
+            self.bufferViews.append(bufferView);
+            normalsAccessor = Accessor()
+            normalsAccessor.bufferView= len(self.bufferViews)-1
+            normalsAccessor.byteOffset = 0
+            normalsAccessor.type = VEC3
+            normalsAccessor.componentType = FLOAT
+            normalsAccessor.count = len(faceVertList)
+            self.accessors.append(normalsAccessor)
+            normalsAccessorIndex = len(self.accessors)-1
+
+        if (hastextureAtFaceVertex):
+            byteLength = len(faceVertList)*2*4;
+            npArray_textureCoords = np.zeros((len(faceVertList), 2), dtype="float32")
+            for faceVert in range(len(faceVertList)):
+                faceVertIndex = faceVertList[faceVert]
+                uvVec2 = polyMesh.getVertexTextureCoordinate(faceVertIndex[0], faceVertIndex[1])
+                npArray_textureCoords[faceVert] = np.array([uvVec2.get(0), uvVec2.get(1)])
+
+            encoded_result = base64.b64encode(npArray_textureCoords).decode("ascii")
+            buffer = Buffer()
+            buffer.byteLength = byteLength;
+            buffer.uri = f"data:application/octet-stream;base64,{encoded_result}";
+            self.buffers.append(buffer);
+        
+            bufferView = BufferView()
+            bufferView.buffer = len(self.buffers)-1
+            bufferView.byteOffset = 0
+            bufferView.byteLength = byteLength
+            bufferView.target = ARRAY_BUFFER
+            self.bufferViews.append(bufferView);
+            textureAccessor = Accessor()
+            textureAccessor.bufferView= len(self.bufferViews)-1
+            textureAccessor.byteOffset = 0
+            textureAccessor.type = VEC2
+            textureAccessor.componentType = FLOAT
+            textureAccessor.count = len(faceVertList)
+            self.accessors.append(textureAccessor)
+            textureAccessorIndex = len(self.accessors)-1
 
         # now vertices
         primitive = Primitive()
@@ -584,33 +651,17 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         indexAccessor.type = SCALAR
         indexAccessor.componentType = UNSIGNED_INT
         indexAccessor.count =  len(trisList)*3;
-        primitive.indices = len(self.accessors)
         self.accessors.append(indexAccessor);
+        primitive.indices = len(self.accessors) - 1
         primitive.attributes.POSITION= pointAccessorIndex
-        # primitive.attributes.NORMAL = normalsAccessorIndex
+        if (normalsAccessorIndex!=None):
+            primitive.attributes.NORMAL = normalsAccessorIndex
+        if (textureAccessorIndex!=None):
+            primitive.attributes.TEXCOORD_0 = textureAccessorIndex
+            
         newMesh = Mesh()
         newMesh.primitives.append(primitive)
         return newMesh;
-
-    # def writeBufferAndView(self, inData: vtk.vtkDataArray, bufferViewTarget: int):
-    #     nt = inData.GetNumberOfTuples()
-    #     nc = inData.GetNumberOfComponents()
-    #     ne = inData.GetElementComponentSize()
-    #     npArray_points = np.array(inData)
-    #     count = nt * nc;
-    #     byteLength = ne * count;
-    #     encoded_result = base64.b64encode(npArray_points).decode("ascii")
-    #     buffer = Buffer()
-    #     buffer.byteLength = byteLength;
-    #     buffer.uri = f"data:application/octet-stream;base64,{encoded_result}";
-    #     self.buffers.append(buffer);
-    
-    #     bufferView = BufferView()
-    #     bufferView.buffer = len(self.buffers)-1
-    #     bufferView.byteOffset = 0
-    #     bufferView.byteLength = byteLength
-    #     bufferView.target = bufferViewTarget
-    #     self.bufferViews.append(bufferView);
 
     def createGLTFLineStrip(self, point0, point1):
         cylMesh = osim.PolygonalMesh().createCylinderMesh(osim.UnitVec3(0., 1., 0.), .005, 0.5)
