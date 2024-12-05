@@ -512,32 +512,34 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
 
         # convert arbitrary n-sided faces into triangles as supported by gltf format
         numFaces = polyMesh.getNumFaces()
-        trisList = []
         faceVertList = []
         hasNormalsAtFaceVertex = polyMesh.hasNormalsAtFaces()
         hastextureAtFaceVertex = polyMesh.hasTextureCoordinatesAtFaces()
         normalsAccessorIndex = None
         textureAccessorIndex = None
 
+        indices = []
         for f in range(numFaces):
             nv = polyMesh.getNumVerticesForFace(f)
-            vertexIdList = []
+            saveLength = len(faceVertList)
+            faceVerticesViz = []
             for i in range(nv):
-                vIndex = polyMesh.getFaceVertex(f, i)
                 faceVertList.append([f, i])
-                vertexIdList.append(vIndex)
-                # if hastextureAtFaceVertex:
-                #     uvAsVec2 = polyMesh.getVertexTextureCoordinate(f, i)
-                #     npArray_tcoords[vIndex] = np.array([uvAsVec2.get(0), uvAsVec2.get(1)])
-                # if hasNormalsAtFaceVertex:
-                #     npArray_normals[vIndex] = polyMesh.getVertexNormal(f, i).to_numpy()
-            # Group indices into triangles
-            trisList.append(vertexIdList[:3])
-            for tri in range(3, len(vertexIdList)):
-                trisList.append([vertexIdList[0], vertexIdList[tri-1], vertexIdList[tri]])
+                faceVerticesViz.append(saveLength+i)
 
-        byteLength = numVerts*3*4;
-        encoded_result = base64.b64encode(npArray_points).decode("ascii")
+            for tri in range(nv-2):
+                indices.append(faceVerticesViz[0])
+                indices.append(faceVerticesViz[tri+1])
+                indices.append(faceVerticesViz[tri+2])
+
+        npArray_verts = np.zeros((len(faceVertList), 3), dtype="float32")
+        for faceVert in range(len(faceVertList)):
+            faceVertIndex = faceVertList[faceVert]
+            vertexIndex = polyMesh.getFaceVertex(faceVertIndex[0], faceVertIndex[1])
+            npArray_verts[faceVert] = polyMesh.getVertexPosition(vertexIndex).to_numpy()
+
+        byteLength = len(faceVertList)*3*4;
+        encoded_result = base64.b64encode(npArray_verts).decode("ascii")
         buffer = Buffer()
         buffer.byteLength = byteLength;
         buffer.uri = f"data:application/octet-stream;base64,{encoded_result}";
@@ -556,7 +558,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         pointAccessor.byteOffset = 0
         pointAccessor.type = VEC3
         pointAccessor.componentType = FLOAT
-        pointAccessor.count = numVerts
+        pointAccessor.count = len(faceVertList)
 
         min_pt = npArray_points.min(axis=0)
         max_pt = npArray_points.max(axis=0)
@@ -631,8 +633,8 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         else:
             primitive.material = mat
 
-        byteLength = len(trisList)*3*4;
-        npArray_indices = np.array(trisList, dtype=np.uint32)
+        npArray_indices = np.array(indices, dtype=np.uint32)
+        byteLength = len(indices)*4;
         encoded_result = base64.b64encode(npArray_indices).decode("ascii")
         buffer = Buffer()
         buffer.byteLength = byteLength;
@@ -650,7 +652,7 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
         indexAccessor.byteOffset = 0
         indexAccessor.type = SCALAR
         indexAccessor.componentType = UNSIGNED_INT
-        indexAccessor.count =  len(trisList)*3;
+        indexAccessor.count =  len(npArray_indices);
         self.accessors.append(indexAccessor);
         primitive.indices = len(self.accessors) - 1
         primitive.attributes.POSITION= pointAccessorIndex
