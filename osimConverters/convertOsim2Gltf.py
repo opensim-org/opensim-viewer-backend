@@ -49,8 +49,9 @@ def convertOsim2Gltf(osimModelFilePath, geometrySearchPath, motionPaths=[], opti
     comp.generateDecorations(True, mdh, state, adg);
     # we don't know how to handle muscles for now so will leave off, verify everything else displays ok
     if (comp.getConcreteClassName()=="GeometryPath"):
-        # Process GeometryPath, create nodes/meshes for path points and mesh/skin as needed
-        decorativeGeometryImp.createGLTFObjectsForGeometryPath(comp)
+        if (options.getShowMuscles()):
+          # Process GeometryPath, create nodes/meshes for path points and mesh/skin as needed
+          decorativeGeometryImp.createGLTFObjectsForGeometryPath(comp)
     else:
         comp.generateDecorations(False, mdh, state, adg);
         sizeAfter = adg.size()

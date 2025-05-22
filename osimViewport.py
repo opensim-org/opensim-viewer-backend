@@ -69,6 +69,8 @@ class osimViewport:
         path = Path(zipFilePath)
         if not path.exists():
             raise NotADirectoryError("Unable to find file ", path.absolute())
+        if options is not None:
+            self._options = options
         folderName = zipFilePath.replace('.zip', '/')
         with zipfile.ZipFile(zipFilePath, 'r') as zip_ref:
             zip_ref.extractall(folderName)
