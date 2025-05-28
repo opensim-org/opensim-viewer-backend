@@ -1140,6 +1140,17 @@ class DecorativeGeometryImplementationGltf(osim.simbody.DecorativeGeometryImplem
 
                 segmentStartIndex = segmentEndIndex
 
+    def makeAnimationNamesUnique(self, motionPaths):
+        animationNames = []
+        motIndex = 0
+        for anim in self.animations:
+            if anim.name in animationNames:
+                suffix = Path(motionPaths[motIndex]).stem
+                anim.name = anim.name + '_'+ suffix
+                animationNames.append(anim.name)
+            else:
+                animationNames.append(anim.name)
+            motIndex = motIndex+1
 
 
 
