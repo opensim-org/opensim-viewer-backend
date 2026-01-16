@@ -46,6 +46,7 @@ class osimViewerOptions:
         self._experimentalMarkerShape = 'sphere'
         self._experimentalMarkerColor = ""
         self._forceShape = 'arrow'
+        self._showMuscles = True
 
     def setExperimentalMarkerShape(self, markerShapeString):
         self._experimentalMarkerShape = markerShapeString
@@ -65,5 +66,11 @@ class osimViewerOptions:
     def getForceShape(self): 
         return self._forceShape
 
+    def setShowMuscles(self, toShow):
+        self._showMuscles = toShow
+    
+    def getShowMuscles(self):
+        return self._showMuscles
+    
     def addCamera(self, camera):
         self._additionalCameras.append(camera)

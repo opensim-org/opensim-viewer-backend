@@ -18,11 +18,13 @@
     limitations under the License.
 '''
 
+import os
 from pathlib import Path
 import osimConverters as osimC
 import opensim as osim
 import osimConverters.openSimData2Gltf
 import osimViewerOptions
+import zipfile
 '''
 osimViewort class is a utility that embodies the creation and manipulation of a view
 that will be displayed in a jupyter notebook. the parameters passed in will be used to shape/size and otherwise
@@ -39,29 +41,65 @@ class osimViewport:
     def __init__(self, width=600, hight=300):
         self.width = width
         self.height = hight
-        self._label = ""
+        self._outputName = ""
         self._options = osimViewerOptions.osimViewerOptions()
 
     def addModelFile(self, modelFile, options=None):
         self._modelFile = modelFile
         self._motions = []
-        self._label = ""
+        self._outputName = ""
         if options is not None:
             self._options = options
 
     def addDataFile(self, dataFile, options=None):
         self._modelFile = dataFile #this should be fixed as motion rather than model
         self._motions = []
-        self._label = ""
+        self._outputName = ""
         if options is not None:
             self._options = options
 
     def addModelAndMotionFiles(self, modelFile, motions, options=None):
         self._motions = motions
         self._modelFile = modelFile
-        self._label = ""
+        self._outputName = ""
         if options is not None:
             self._options = options
+
+    def addOpenCapZip(self, zipFilePath, options=None):
+        path = Path(zipFilePath)
+        if not path.exists():
+            raise NotADirectoryError("Unable to find file ", path.absolute())
+        if options is not None:
+            self._options = options
+        folderName = zipFilePath.replace('.zip', '/')
+        with zipfile.ZipFile(zipFilePath, 'r') as zip_ref:
+            zip_ref.extractall(folderName)
+        # expected layout is 
+        # folder 
+        #    OpenSimData
+        #       Model
+        #         [model].osim
+        #       Kinematics
+        #          [session1].mot
+        #          [session...].mot
+        opensimFolderPath = None
+        modelFiles = []
+        motionFiles = []
+        for dirpath, dirnames, filenames in os.walk(folderName):
+            if ('OpenSimData' in dirnames):
+                opensimFolderPath = dirpath
+            for file in filenames:
+                if file.endswith(".osim"):
+                    modelFiles.append(os.path.join(dirpath, file))
+                if file.endswith(".mot"):
+                    motionFiles.append(os.path.join(dirpath, file))
+
+        # if not found bail out otherwise process files
+        if opensimFolderPath is not None:
+           self._modelFile = modelFiles[0]
+           self._motions = motionFiles
+           self._outputName=path.stem + '.gltf'
+
 
     def addSceneCamera(self, sceneCamera):
         self._options.addCamera(sceneCamera)
@@ -80,8 +118,11 @@ class osimViewport:
             osimConverters.openSimData2Gltf.addCamera(gltfOutput, cam.name, None, cam.position, cam.rotation)
         
         if (suggestedName==None):
-            shortname = Path(self._modelFile).stem
-            gltfOutput.save(shortname+'.gltf')
+            if (self._outputName == ""):
+                shortname = Path(self._modelFile).stem
+                gltfOutput.save(shortname+'.gltf')
+            else:
+                gltfOutput.save(self._outputName)
         else:
             if (suggestedName.endswith(".gltf")):
                 gltfOutput.save(suggestedName)

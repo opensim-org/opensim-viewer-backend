@@ -49,8 +49,9 @@ def convertOsim2Gltf(osimModelFilePath, geometrySearchPath, motionPaths=[], opti
     comp.generateDecorations(True, mdh, state, adg);
     # we don't know how to handle muscles for now so will leave off, verify everything else displays ok
     if (comp.getConcreteClassName()=="GeometryPath"):
-        # Process GeometryPath, create nodes/meshes for path points and mesh/skin as needed
-        decorativeGeometryImp.createGLTFObjectsForGeometryPath(comp)
+        if (options.getShowMuscles()):
+          # Process GeometryPath, create nodes/meshes for path points and mesh/skin as needed
+          decorativeGeometryImp.createGLTFObjectsForGeometryPath(comp)
     else:
         comp.generateDecorations(False, mdh, state, adg);
         sizeAfter = adg.size()
@@ -72,6 +73,8 @@ def convertOsim2Gltf(osimModelFilePath, geometrySearchPath, motionPaths=[], opti
     if (motStorage.isInDegrees()):
       model.getSimbodyEngine().convertDegreesToRadians(motStorage)
     decorativeGeometryImp.createAnimationForStateTimeSeries(motStorage, motIndex)
+  # mot files typically have name 'Coordinate' which causes problems to viewer if not unique
+  decorativeGeometryImp.makeAnimationNamesUnique(motionPaths);
 
   modelGltf = decorativeGeometryImp.get_GLTF()
   return modelGltf
