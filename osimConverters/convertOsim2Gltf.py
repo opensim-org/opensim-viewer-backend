@@ -9,7 +9,7 @@ from pathlib import Path
 from .openSimData2Gltf import *
 from .DecorativeGeometryImplementationGltf import DecorativeGeometryImplementationGltf
 
-def convertOsim2Gltf(osimModelFilePath, geometrySearchPath, motionPaths=[], options=None) :
+def convertOsim2Gltf(osimModelFilePath, geometrySearchPath, motionPaths=[], options=None, startingGltf=None) :
 
   path = Path(osimModelFilePath)
   osim.ModelVisualizer.addDirToGeometrySearchPaths(geometrySearchPath)
@@ -23,7 +23,10 @@ def convertOsim2Gltf(osimModelFilePath, geometrySearchPath, motionPaths=[], opti
   model = osim.Model(osimModelFilePath)
   state = model.initSystem()
 
-  gltfInstance = initGltf()
+  if (startingGltf == None):
+    gltfInstance = initGltf()
+  else:
+     gltfInstance = startingGltf
   # create a DecorativeGeometryImplementationGltf instance then iterate through
   # the model querying each component to "render" to the GLTF 
   decorativeGeometryImp = DecorativeGeometryImplementationGltf();

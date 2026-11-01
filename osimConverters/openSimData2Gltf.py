@@ -20,7 +20,7 @@ def getMarkerMeshScale():
   return .01
 
 def getForceMeshScale():
-  return 0.1
+  return 0.2
 
 def getForceNormalizationScale():
   return .001
@@ -71,6 +71,7 @@ def createForceNodes(shape, forcesDictionary, unitConversionToMeters, scaleData,
       else:
         nextForceNode.mesh = desiredShape
 
+      nextForceNode.material=4
       # extras are place holder for application specific properties
       # for now we'll pass opensimType, may add layers, as needs arise....
       opensim_extras = {"opensimType": "ExtForce", 
