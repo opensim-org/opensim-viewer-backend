@@ -45,9 +45,9 @@ def createForceDictionary(labels, forcesDictionary):
     for idx in range(len(labels)-1):   # len(labels)-1 first force only for now
       force_point_label_candidate = [labels[idx], labels[idx+1]]
       forceNameCandidate = pathmethods.commonprefix(force_point_label_candidate)
-      if (len(forceNameCandidate)==len(labels[idx])-1) and (len(forceNameCandidate)!=0):
+      if (labels[idx].endswith("_v") and labels[idx+1].endswith("_p") and (len(forceNameCandidate)!=0)):
          forcesDictionary[forceNameCandidate[:-1]] = idx # Avoid trailing _ in most cases
-         idx += 1
+         idx += 2
       else: # could be fx, px format
         k = labels[idx].rfind("f")
         if (k==-1):
@@ -55,7 +55,7 @@ def createForceDictionary(labels, forcesDictionary):
         poslabelCandidate = labels[idx][:k] + "p" + labels[idx][k+1:]
         if (labels[idx+1]==poslabelCandidate):
           forcesDictionary[labels[idx]] = idx
-          idx += 1
+          idx += 2
         
 def createForceNodes(shape, forcesDictionary, unitConversionToMeters, scaleData, forceScale, firstDataFrame, gltf, topNode):
     firstForceNodeIndex = len(gltf.nodes)
