@@ -71,7 +71,7 @@ def createForceNodes(shape, forcesDictionary, unitConversionToMeters, scaleData,
         nextForceNode.mesh =  0
       else:
         nextForceNode.mesh = desiredShape
-
+      # green color for forces
       nextForceNode.material=4
       # extras are place holder for application specific properties
       # for now we'll pass opensimType, may add layers, as needs arise....
