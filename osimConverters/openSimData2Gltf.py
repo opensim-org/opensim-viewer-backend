@@ -45,6 +45,7 @@ def createForceDictionary(labels, forcesDictionary):
     for idx in range(len(labels)-1):   # len(labels)-1 first force only for now
       force_point_label_candidate = [labels[idx], labels[idx+1]]
       forceNameCandidate = pathmethods.commonprefix(force_point_label_candidate)
+      # more permissive naming convention not enforcing idential prefix (allow ground_force_vx, cop_px consecutive labels)
       if (labels[idx].endswith("_v") and labels[idx+1].endswith("_p") and (len(forceNameCandidate)!=0)):
          forcesDictionary[forceNameCandidate[:-1]] = idx # Avoid trailing _ in most cases
          idx += 2
