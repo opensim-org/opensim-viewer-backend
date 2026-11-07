@@ -23,7 +23,7 @@ from pathlib import Path
 import osimConverters as osimC
 import opensim as osim
 import osimConverters.openSimData2Gltf
-import osimViewerOptions
+import osimConverters.osimViewerOptions
 import zipfile
 '''
 osimViewort class is a utility that embodies the creation and manipulation of a view
@@ -42,7 +42,7 @@ class osimViewport:
         self.width = width
         self.height = hight
         self._outputName = ""
-        self._options = osimViewerOptions.osimViewerOptions()
+        self._options = osimConverters.osimViewerOptions()
 
     def addModelFile(self, modelFile, options=None):
         self._modelFile = modelFile

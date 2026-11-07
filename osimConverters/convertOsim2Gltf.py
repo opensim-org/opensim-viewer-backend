@@ -33,6 +33,9 @@ def convertOsim2Gltf(osimModelFilePath, geometrySearchPath, motionPaths=[], opti
   decorativeGeometryImp.init()
   decorativeGeometryImp.setGltf(gltfInstance)
   decorativeGeometryImp.setState(state)
+  if (options != None):
+    model.getDisplayHints().set_show_markers(options.getShowMarkers())
+
   decorativeGeometryImp.setDisplayHints(model.getDisplayHints())
 
   # create Group nodes for toplevel, ground, bodies and all frames
@@ -52,7 +55,7 @@ def convertOsim2Gltf(osimModelFilePath, geometrySearchPath, motionPaths=[], opti
     comp.generateDecorations(True, mdh, state, adg);
     # we don't know how to handle muscles for now so will leave off, verify everything else displays ok
     if (comp.getConcreteClassName()=="GeometryPath"):
-        if (options.getShowMuscles()):
+        if (options != None and options.getShowMuscles()):
           # Process GeometryPath, create nodes/meshes for path points and mesh/skin as needed
           decorativeGeometryImp.createGLTFObjectsForGeometryPath(comp)
     else:

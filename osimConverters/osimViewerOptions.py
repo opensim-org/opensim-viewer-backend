@@ -47,6 +47,7 @@ class osimViewerOptions:
         self._experimentalMarkerColor = ""
         self._forceShape = 'arrow'
         self._showMuscles = True
+        self._showMarkers = True
         # When combining multiple animation sources
         # add new tracks in same animation instead of a separate animation
         self._addTracksOnly = False
@@ -78,11 +79,20 @@ class osimViewerOptions:
     def getShowMuscles(self):
         return self._showMuscles
 
+    def setShowMarkers(self, toShow):
+        self._showMarkers = toShow
+
+    def getShowMarkers(self):
+        return self._showMarkers
+
     def setAddTracksOnly(self, addTracksOnly):
         self._addTracksOnly = addTracksOnly
 
     def setAddToCurrentGltf(self, addToGltfIfAvailable):
         self._addToCurrentGltf = addToGltfIfAvailable
+
+    def getAddToCurrentGltf(self):
+        return self._addToCurrentGltf
     
     def addCamera(self, camera):
         self._additionalCameras.append(camera)

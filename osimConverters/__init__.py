@@ -6,6 +6,7 @@ from .convertOsim2Gltf import *
 from .convertOsimZip2Gltf import *
 from .convertOpenCapZip2Gltf import *
 from .osimCamera import *
+from .osimViewerOptions import *
 
 def convertNativeFileToGLTF(inFilePathOrURL, options, startingGltf=None):
         filename, file_extension = os.path.splitext(inFilePathOrURL)
