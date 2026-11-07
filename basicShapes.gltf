@@ -423,6 +423,15 @@
         "roughnessFactor": 1
       },
       "doubleSided": true
+    },
+    {
+      "name": "GreenMaterial",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [0, 1, 0, 1],
+        "metallicFactor": 0,
+        "roughnessFactor": 1
+      },
+      "doubleSided": true
     }
   ],
   "meshes": [
@@ -478,7 +487,7 @@
             "NORMAL": 14
           },
           "indices": 15,
-          "material": 3
+          "material": 4
         }
       ]
     }
