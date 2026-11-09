@@ -9,7 +9,7 @@ from pathlib import Path
 from .openSimData2Gltf import *
 from .DecorativeGeometryImplementationGltf import DecorativeGeometryImplementationGltf
 
-def convertOsim2Gltf(osimModelFilePath, geometrySearchPath, motionPaths=[], options=None) :
+def convertOsim2Gltf(osimModelFilePath, geometrySearchPath, motionPaths=[], options=None, startingGltf=None) :
 
   path = Path(osimModelFilePath)
   osim.ModelVisualizer.addDirToGeometrySearchPaths(geometrySearchPath)
@@ -23,13 +23,19 @@ def convertOsim2Gltf(osimModelFilePath, geometrySearchPath, motionPaths=[], opti
   model = osim.Model(osimModelFilePath)
   state = model.initSystem()
 
-  gltfInstance = initGltf()
+  if (startingGltf == None):
+    gltfInstance = initGltf()
+  else:
+     gltfInstance = startingGltf
   # create a DecorativeGeometryImplementationGltf instance then iterate through
   # the model querying each component to "render" to the GLTF 
   decorativeGeometryImp = DecorativeGeometryImplementationGltf();
   decorativeGeometryImp.init()
   decorativeGeometryImp.setGltf(gltfInstance)
   decorativeGeometryImp.setState(state)
+  if (options != None):
+    model.getDisplayHints().set_show_markers(options.getShowMarkers())
+
   decorativeGeometryImp.setDisplayHints(model.getDisplayHints())
 
   # create Group nodes for toplevel, ground, bodies and all frames
@@ -49,7 +55,7 @@ def convertOsim2Gltf(osimModelFilePath, geometrySearchPath, motionPaths=[], opti
     comp.generateDecorations(True, mdh, state, adg);
     # we don't know how to handle muscles for now so will leave off, verify everything else displays ok
     if (comp.getConcreteClassName()=="GeometryPath"):
-        if (options.getShowMuscles()):
+        if (options != None and options.getShowMuscles()):
           # Process GeometryPath, create nodes/meshes for path points and mesh/skin as needed
           decorativeGeometryImp.createGLTFObjectsForGeometryPath(comp)
     else:

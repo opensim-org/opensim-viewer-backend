@@ -23,7 +23,7 @@ from pathlib import Path
 import osimConverters as osimC
 import opensim as osim
 import osimConverters.openSimData2Gltf
-import osimViewerOptions
+import osimConverters.osimViewerOptions
 import zipfile
 '''
 osimViewort class is a utility that embodies the creation and manipulation of a view
@@ -42,7 +42,7 @@ class osimViewport:
         self.width = width
         self.height = hight
         self._outputName = ""
-        self._options = osimViewerOptions.osimViewerOptions()
+        self._options = osimConverters.osimViewerOptions()
 
     def addModelFile(self, modelFile, options=None):
         self._modelFile = modelFile
@@ -106,17 +106,20 @@ class osimViewport:
 
     def  show(self):
         self.saveGltf()
-    
-    def  saveGltf(self, suggestedName=None):
+
+    def getGltf(self):
         if (len(self._motions)==0):
             gltfOutput = osimC.convertNativeFileToGLTF(self._modelFile, self._options)
         else:
             gltfOutput = osimC.convertNativeFileSetToGLTF(self._modelFile, self._motions, self._options)
-        
         # add user provided cameras 
         for cam in self._options._additionalCameras:
             osimConverters.openSimData2Gltf.addCamera(gltfOutput, cam.name, None, cam.position, cam.rotation)
-        
+
+        return gltfOutput
+
+    def  saveGltf(self, suggestedName=None):
+        gltfOutput = self.getGltf();
         if (suggestedName==None):
             if (self._outputName == ""):
                 shortname = Path(self._modelFile).stem
@@ -128,3 +131,16 @@ class osimViewport:
                 gltfOutput.save(suggestedName)
             else:
                 gltfOutput.save(suggestedName+'.gltf')
+
+    def  writeGltf(self, gltfJson, suggestedName=None):
+        if (suggestedName==None):
+            if (self._outputName == ""):
+                shortname = Path(self._modelFile).stem
+                gltfJson.save(shortname+'.gltf')
+            else:
+                gltfJson.save(self._outputName)
+        else:
+            if (suggestedName.endswith(".gltf")):
+                gltfJson.save(suggestedName)
+            else:
+                gltfJson.save(suggestedName+'.gltf')
