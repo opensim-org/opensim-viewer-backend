@@ -80,7 +80,8 @@ def convertOsim2Gltf(osimModelFilePath, geometrySearchPath, motionPaths=[], opti
       model.getSimbodyEngine().convertDegreesToRadians(motStorage)
     decorativeGeometryImp.createAnimationForStateTimeSeries(motStorage, motIndex)
   # mot files typically have name 'Coordinate' which causes problems to viewer if not unique
-  decorativeGeometryImp.makeAnimationNamesUnique(motionPaths);
+  if (len(motionPaths) > 1):
+    decorativeGeometryImp.makeAnimationNamesUnique(motionPaths);
 
   modelGltf = decorativeGeometryImp.get_GLTF()
   return modelGltf
