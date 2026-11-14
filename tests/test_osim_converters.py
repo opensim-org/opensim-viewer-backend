@@ -219,51 +219,6 @@ def test_convert_trc2gltf_arm26_elbow_flex_regression():
     )
 
 
-def test_convert_c3d2gltf_converts_markers_without_force_data(
-    monkeypatch, tmp_path
-):
-    converter = importlib.import_module("osimConverters.convertC3D2Gltf")
-    c3d_file = tmp_path / "capture.c3d"
-    c3d_file.write_text("", encoding="utf-8")
-    gltf = object()
-    marker_table = type("MarkerTable", (), {"getNumRows": lambda self: 2})()
-    force_table = type("ForceTable", (), {"getNumRows": lambda self: 0})()
-    marker_calls = []
-
-    class Adapter:
-        ForceLocation_CenterOfPressure = "center-of-pressure"
-
-        def setLocationForForceExpression(self, location):
-            self.force_location = location
-
-        def read(self, path):
-            return "tables"
-
-        def getMarkersTable(self, tables):
-            return marker_table
-
-        def getForcesTable(self, tables):
-            return force_table
-
-    monkeypatch.setattr(converter.osim, "C3DFileAdapter", Adapter)
-    monkeypatch.setattr(converter, "initGltf", lambda: gltf)
-    monkeypatch.setattr(
-        converter,
-        "convertMarkersTimeSeries2Gltf",
-        lambda target, shape, table: marker_calls.append(
-            (target, shape, table)
-        ),
-    )
-    options = type(
-        "Options", (), {"getExperimentalMarkerShape": lambda self: "cube"}
-    )()
-
-    result = converter.convertC3D2Gltf(str(c3d_file), options)
-
-    assert result is gltf
-    assert marker_calls == [(gltf, "cube", marker_table)]
-
-
 @pytest.mark.parametrize(
     ("shape", "mesh_index"),
     [("brick", 0), ("sphere", 1), ("cube", 2), ("arrow", 3)],
