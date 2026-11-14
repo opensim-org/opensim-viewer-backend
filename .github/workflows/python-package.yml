@@ -17,7 +17,8 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.12", "3.13"]
-
+    env:
+        PYTHONPATH: ${{ github.workspace }}
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python ${{ matrix.python-version }}
